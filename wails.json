@@ -1,0 +1,19 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "alter",
+  "outputfilename": "alter",
+  "frontend:install": "",
+  "frontend:build": "",
+  "author": {
+    "name": "",
+    "email": ""
+  },
+  "info": {
+    "companyName": "Alter",
+    "productName": "Alter",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2024",
+    "comments": "A modern desktop chat application"
+  }
+}
+

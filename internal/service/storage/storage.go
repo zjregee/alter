@@ -111,7 +111,7 @@ func newDatabase() (*database, bool, error) {
 		return err
 	})
 	if err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, false, fmt.Errorf("failed to create bucket: %w", err)
 	}
 

@@ -18,10 +18,10 @@ const (
 )
 
 type ScannerOptions struct {
-	CodexSessionsRoot         string
-	ClaudeProjectsRoots       []string
-	CacheRoot                 string
-	RefreshMinIntervalSeconds time.Duration
+	CodexSessionsRoot   string
+	ClaudeProjectsRoots []string
+	CacheRoot           string
+	RefreshMinInterval  time.Duration
 }
 
 type DayRange struct {
@@ -254,7 +254,7 @@ func loadCodexDaily(rng DayRange, now time.Time, options ScannerOptions) (*Daily
 	}
 
 	nowMs := now.UnixMilli()
-	shouldRefresh := options.RefreshMinIntervalSeconds == 0 || cache.LastScanUnixMs == 0 || now.Sub(time.UnixMilli(cache.LastScanUnixMs)) > options.RefreshMinIntervalSeconds
+	shouldRefresh := options.RefreshMinInterval == 0 || cache.LastScanUnixMs == 0 || now.Sub(time.UnixMilli(cache.LastScanUnixMs)) > options.RefreshMinInterval
 
 	root, err := defaultCodexSessionsRoot(options)
 	if err != nil {
@@ -519,14 +519,14 @@ func loadClaudeDaily(rng DayRange, now time.Time, options ScannerOptions) (*Dail
 	}
 
 	nowMs := now.UnixMilli()
-	shouldRefresh := options.RefreshMinIntervalSeconds == 0 || cache.LastScanUnixMs == 0 || now.Sub(time.UnixMilli(cache.LastScanUnixMs)) > options.RefreshMinIntervalSeconds
+	shouldRefresh := options.RefreshMinInterval == 0 || cache.LastScanUnixMs == 0 || now.Sub(time.UnixMilli(cache.LastScanUnixMs)) > options.RefreshMinInterval
 
 	roots := defaultClaudeProjectsRoots(options)
 	touched := make(map[string]struct{})
 
 	if shouldRefresh {
 		for _, root := range roots {
-			filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 				if err != nil || d.IsDir() || !strings.HasSuffix(strings.ToLower(d.Name()), ".jsonl") {
 					return nil
 				}

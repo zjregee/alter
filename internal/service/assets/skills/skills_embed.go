@@ -4,5 +4,5 @@ import (
 	"embed"
 )
 
-//go:embed **/SKILL.md
+//go:embed all:*
 var SkillsFS embed.FS

@@ -202,24 +202,18 @@ func (a *App) RegenerateLastResponse(threadID string) error {
 
 			switch m := msg.(type) {
 			case models.AgentStartThinking:
-				msgType = "start_thinking"
 				content = ""
 			case models.AgentThought:
-				msgType = "thought"
 				content = formatThreadMessage(m.Content)
 			case models.AgentExecutingToolStart:
-				msgType = string(m.GetType())
 				payload, _ := json.Marshal(m)
 				content = string(payload)
 			case models.AgentExecutingToolFinish:
-				msgType = string(m.GetType())
 				payload, _ := json.Marshal(m)
 				content = string(payload)
 			case models.AgentFinalResponse:
-				msgType = "final_response"
 				content = formatThreadMessage(m.Content)
 			case models.AgentError:
-				msgType = "error"
 				content = formatThreadMessage(m.Error)
 			default:
 				continue

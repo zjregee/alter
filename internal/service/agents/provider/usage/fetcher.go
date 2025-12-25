@@ -32,9 +32,9 @@ func (f *Fetcher) LoadTokenSnapshot(provider UsageProvider, now time.Time, force
 
 	options := ScannerOptions{}
 	if forceRefresh {
-		options.RefreshMinIntervalSeconds = 0
+		options.RefreshMinInterval = 0
 	} else {
-		options.RefreshMinIntervalSeconds = 60 * time.Second
+		options.RefreshMinInterval = 60 * time.Second
 	}
 
 	daily, err := LoadDailyReport(string(provider), since, until, now, options)

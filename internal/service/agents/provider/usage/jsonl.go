@@ -17,7 +17,9 @@ func ScanJSONL(fileURL string, maxLineBytes int, prefixBytes int, onLine func(Li
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	scanner := bufio.NewScanner(file)
 

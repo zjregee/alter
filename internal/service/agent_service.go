@@ -53,6 +53,14 @@ func (s *AgentService) ListWorkspaces() []*models.WorkspaceInfo {
 	return getAvailableWorkspaces()
 }
 
+func (s *AgentService) AddWorkspace(workspacePath string) error {
+	return addWorkspace(workspacePath)
+}
+
+func (s *AgentService) DeleteWorkspace(workspacePath string) error {
+	return deleteWorkspace(workspacePath)
+}
+
 func (s *AgentService) CreateThread(ctx context.Context) (string, error) {
 	config := newDefaultAgentConfig()
 	agent, err := NewAgent(ctx, config)

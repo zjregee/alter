@@ -46,3 +46,33 @@ func isWorkspacePathAvailable(workspacePath string) bool {
 
 	return false
 }
+
+func addWorkspace(workspacePath string) error {
+	infos, err := storage.LoadWorkspaceInfos()
+	if err != nil {
+		return err
+	}
+
+	infos.Infos = append(infos.Infos, &models.WorkspaceInfo{
+		Path:      workspacePath,
+		IsDefault: false,
+	})
+
+	return storage.SaveWorkspaceInfos(infos.Infos)
+}
+
+func deleteWorkspace(workspacePath string) error {
+	infos, err := storage.LoadWorkspaceInfos()
+	if err != nil {
+		return err
+	}
+
+	for i, info := range infos.Infos {
+		if info.Path == workspacePath {
+			infos.Infos = append(infos.Infos[:i], infos.Infos[i+1:]...)
+			break
+		}
+	}
+
+	return storage.SaveWorkspaceInfos(infos.Infos)
+}

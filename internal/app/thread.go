@@ -39,6 +39,29 @@ func (a *App) ListThreads() []*models.ThreadInfo {
 	return ordered
 }
 
+func (a *App) DeleteThread(threadID string) error {
+	if a.agentService == nil {
+		return fmt.Errorf("agent service not initialized")
+	}
+	if threadID == "" {
+		return fmt.Errorf("thread ID is required")
+	}
+	if err := a.agentService.DeleteThread(threadID); err != nil {
+		return err
+	}
+
+	a.threadOrderMu.Lock()
+	for i, id := range a.threadOrder {
+		if id == threadID {
+			a.threadOrder = append(a.threadOrder[:i], a.threadOrder[i+1:]...)
+			break
+		}
+	}
+	a.threadOrderMu.Unlock()
+
+	return nil
+}
+
 func (a *App) GetThreadMessages(threadID string) ([]*models.ThreadMessage, error) {
 	if a.agentService == nil {
 		return nil, fmt.Errorf("agent service not initialized")
@@ -50,7 +73,6 @@ func (a *App) GetThreadMessages(threadID string) ([]*models.ThreadMessage, error
 	return a.agentService.GetThreadMessages(threadID)
 }
 
-// UpdateThreadModel updates the model for a thread.
 func (a *App) UpdateThreadModel(threadID, modelID string) error {
 	if a.agentService == nil {
 		return fmt.Errorf("agent service not initialized")
@@ -65,60 +87,22 @@ func (a *App) UpdateThreadModel(threadID, modelID string) error {
 	return a.agentService.UpdateThreadModel(threadID, modelID)
 }
 
-// DeleteThread deletes a thread.
-func (a *App) DeleteThread(threadID string) error {
-	if a.agentService == nil {
-		return fmt.Errorf("agent service not initialized")
-	}
-	if threadID == "" {
-		return fmt.Errorf("thread ID is required")
-	}
-	if err := a.agentService.DeleteThread(threadID); err != nil {
-		return err
-	}
-
-	a.threadOrderMu.Lock()
-	newOrder := make([]string, 0, len(a.threadOrder))
-	for _, id := range a.threadOrder {
-		if id != threadID {
-			newOrder = append(newOrder, id)
-		}
-	}
-	a.threadOrder = newOrder
-	a.threadOrderMu.Unlock()
-
-	return nil
-}
-
-func (a *App) UpdateThreadTitle(threadID, title string) error {
-	if a.agentService == nil {
-		return fmt.Errorf("agent service not initialized")
-	}
-	if threadID == "" {
-		return fmt.Errorf("thread ID is required")
-	}
-
-	formatted := formatThreadTitle(title)
-
-	return a.agentService.UpdateThreadTitle(threadID, formatted)
-}
-
-// ReorderThreads reorders the thread list.
 func (a *App) ReorderThreads(order []string) error {
 	if a.agentService == nil {
 		return fmt.Errorf("agent service not initialized")
 	}
+
 	threads := a.agentService.ListThreads()
 	if len(order) != len(threads) {
 		return fmt.Errorf("invalid order length: expected %d, got %d", len(threads), len(order))
 	}
 
 	exists := make(map[string]struct{}, len(threads))
-	seen := make(map[string]bool, len(order))
 	for _, thread := range threads {
 		exists[thread.ID] = struct{}{}
 	}
 
+	seen := make(map[string]bool, len(order))
 	for _, id := range order {
 		if _, ok := exists[id]; !ok {
 			return fmt.Errorf("thread not found: %s", id)
@@ -126,11 +110,12 @@ func (a *App) ReorderThreads(order []string) error {
 		if seen[id] {
 			return fmt.Errorf("duplicate thread ID in order: %s", id)
 		}
+
 		seen[id] = true
 	}
 
 	a.threadOrderMu.Lock()
-	a.threadOrder = append([]string(nil), order...)
+	a.threadOrder = order
 	a.threadOrderMu.Unlock()
 
 	return nil
@@ -147,14 +132,6 @@ func (a *App) syncThreadOrder(threads []*models.ThreadInfo) {
 		exists[thread.ID] = struct{}{}
 	}
 
-	if len(a.threadOrder) == 0 {
-		a.threadOrder = make([]string, 0, len(threads))
-		for _, thread := range threads {
-			a.threadOrder = append(a.threadOrder, thread.ID)
-		}
-		return
-	}
-
 	filtered := make([]string, 0, len(a.threadOrder))
 	seen := make(map[string]struct{}, len(threads))
 	for _, id := range a.threadOrder {
@@ -163,17 +140,19 @@ func (a *App) syncThreadOrder(threads []*models.ThreadInfo) {
 			seen[id] = struct{}{}
 		}
 	}
+
 	for _, thread := range threads {
 		if _, ok := seen[thread.ID]; !ok {
 			filtered = append(filtered, thread.ID)
 		}
 	}
+
 	a.threadOrder = filtered
 }
 
 func (a *App) orderedThreads(threads []*models.ThreadInfo) []*models.ThreadInfo {
 	if len(threads) == 0 {
-		return threads
+		return []*models.ThreadInfo{}
 	}
 
 	byID := make(map[string]*models.ThreadInfo, len(threads))
@@ -189,10 +168,12 @@ func (a *App) orderedThreads(threads []*models.ThreadInfo) []*models.ThreadInfo 
 			seen[id] = struct{}{}
 		}
 	}
+
 	for _, thread := range threads {
 		if _, ok := seen[thread.ID]; !ok {
 			ordered = append(ordered, thread)
 		}
 	}
+
 	return ordered
 }

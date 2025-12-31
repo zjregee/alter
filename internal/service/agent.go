@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -29,9 +31,10 @@ type Agent struct {
 	tools    []*schema.ToolInfo
 	toolsMap map[string]tool.InvokableTool
 
-	messages          []*schema.Message
-	messageTimestamps []int64
-	stats             *models.AgentStats
+	history []*schema.Message
+	turns   []*models.ThreadMessageTurn
+
+	stats *models.AgentStats
 
 	cancelFunc context.CancelFunc
 }
@@ -43,7 +46,7 @@ func applyDefaults(c *models.AgentConfig) error {
 	if c.ModelID == "" {
 		return fmt.Errorf("agent model is required")
 	}
-	if isModelAvailable(c.ModelID) {
+	if !isModelAvailable(c.ModelID) {
 		return fmt.Errorf("agent model is not available: %s", c.ModelID)
 	}
 	if c.MaxIterations <= 0 {
@@ -55,7 +58,7 @@ func applyDefaults(c *models.AgentConfig) error {
 	if c.WorkDir == "" {
 		return fmt.Errorf("agent work dir is required")
 	}
-	if isWorkspacePathAvailable(c.WorkDir) {
+	if !isWorkspacePathAvailable(c.WorkDir) {
 		return fmt.Errorf("agent work dir is not available: %s", c.WorkDir)
 	}
 
@@ -84,13 +87,13 @@ func NewAgent(ctx context.Context, cfg models.AgentConfig) (*Agent, error) {
 		config:   cfg,
 		tools:    toolInfos,
 		toolsMap: toolsMap,
-		messages: []*schema.Message{
+		history: []*schema.Message{
 			{
 				Role:    schema.System,
 				Content: buildSystemPrompt(cfg.WorkDir),
 			},
 		},
-		messageTimestamps: []int64{time.Now().UnixMilli()},
+		turns: make([]*models.ThreadMessageTurn, 0),
 		stats: &models.AgentStats{
 			Usage:               &models.AgentUsage{},
 			NextExecutingToolID: 0,
@@ -99,7 +102,7 @@ func NewAgent(ctx context.Context, cfg models.AgentConfig) (*Agent, error) {
 	}, nil
 }
 
-func NewAgentWithMessages(ctx context.Context, id string, cfg models.AgentConfig, messages []*schema.Message, messageTimestamps []int64, stats *models.AgentStats) (*Agent, error) {
+func NewAgentWithMessages(ctx context.Context, id string, cfg models.AgentConfig, history []*schema.Message, turns []*models.ThreadMessageTurn, stats *models.AgentStats) (*Agent, error) {
 	if err := applyDefaults(&cfg); err != nil {
 		return nil, err
 	}
@@ -110,13 +113,13 @@ func NewAgentWithMessages(ctx context.Context, id string, cfg models.AgentConfig
 	}
 
 	return &Agent{
-		id:                id,
-		config:            cfg,
-		tools:             toolInfos,
-		toolsMap:          toolsMap,
-		messages:          messages,
-		messageTimestamps: messageTimestamps,
-		stats:             stats,
+		id:       id,
+		config:   cfg,
+		tools:    toolInfos,
+		toolsMap: toolsMap,
+		history:  history,
+		turns:    turns,
+		stats:    stats,
 	}, nil
 }
 
@@ -138,7 +141,7 @@ func (a *Agent) UpdateModelID(modelID string) error {
 		return fmt.Errorf("agent model is required")
 	}
 
-	if isModelAvailable(modelID) {
+	if !isModelAvailable(modelID) {
 		return fmt.Errorf("agent model is not available: %s", modelID)
 	}
 
@@ -156,13 +159,12 @@ func (a *Agent) UpdateWorkDir(workDir string) error {
 		return nil
 	}
 
-	if len(a.messages) > 1 {
-		return fmt.Errorf("agent messages are not empty")
+	if len(a.turns) > 0 {
+		return fmt.Errorf("cannot change work dir on a non-empty thread")
 	}
 
 	a.config.WorkDir = workDir
-	a.messages[0].Content = buildSystemPrompt(workDir)
-	a.messageTimestamps[0] = time.Now().UnixMilli()
+	a.history[0].Content = buildSystemPrompt(workDir)
 	return nil
 }
 
@@ -183,30 +185,29 @@ func (a *Agent) CancelStreamRequest() {
 	}
 }
 
-func (a *Agent) GetMessagesWithTimestamps() ([]*schema.Message, []int64) {
-	return a.messages, a.messageTimestamps
+func (a *Agent) GetTurns() []*models.ThreadMessageTurn {
+	return a.turns
 }
 
-func (a *Agent) TruncateMessagesSince(index int) error {
-	nonSystemIndex := -1
-	actualIndex := -1
+func (a *Agent) GetHistory() []*schema.Message {
+	return a.history
+}
 
-	for i, msg := range a.messages {
-		if msg.Role != schema.System {
-			nonSystemIndex += 1
-			if nonSystemIndex == index {
-				actualIndex = i
-				break
-			}
-		}
+func (a *Agent) TruncateMessagesSince(turnIndex int) error {
+	if turnIndex < 0 || turnIndex >= len(a.turns) {
+		return fmt.Errorf("invalid turn index: %d", turnIndex)
 	}
 
-	if actualIndex == -1 {
-		return fmt.Errorf("invalid message index: %d", index)
+	a.turns = a.turns[:turnIndex]
+
+	historyCount := 1
+	for _, turn := range a.turns {
+		historyCount += len(turn.Events)
 	}
 
-	a.messages = a.messages[:actualIndex+1]
-	a.messageTimestamps = a.messageTimestamps[:actualIndex+1]
+	if historyCount <= len(a.history)+1 {
+		a.history = a.history[:historyCount+1]
+	}
 
 	return nil
 }
@@ -224,24 +225,67 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 		return
 	}
 
-	userMessage := &schema.Message{
-		Role:    schema.User,
+	userMsg := models.UserMessage{
 		Content: userInput,
 	}
-	a.messages = append(a.messages, userMessage)
-	a.messageTimestamps = append(a.messageTimestamps, time.Now().UnixMilli())
+	userEventContent, _ := json.Marshal(userMsg)
+	userTurn := &models.ThreadMessageTurn{
+		Role: schema.User,
+		Events: []*models.MarshaledThreadMessage{
+			{
+				Type:    models.AgentMessageTypeUserMessage,
+				Content: userEventContent,
+			},
+		},
+	}
+	a.turns = append(a.turns, userTurn)
+	a.history = append(a.history, &schema.Message{
+		Role:    schema.User,
+		Content: userInput,
+	})
+
+	var assistantEventsMu sync.Mutex
+	var assistantEvents []*models.MarshaledThreadMessage
+
+	sendAndCollect := func(event models.AgentMessage) {
+		eventContent, _ := json.Marshal(event)
+		assistantEventsMu.Lock()
+		assistantEvents = append(assistantEvents, &models.MarshaledThreadMessage{
+			Type:    event.GetType(),
+			Content: eventContent,
+		})
+		assistantEventsMu.Unlock()
+
+		msgChan <- event
+	}
+
+	assistantTurn := &models.ThreadMessageTurn{
+		Role:   schema.Assistant,
+		Events: assistantEvents,
+	}
+	defer func() {
+		assistantEventsMu.Lock()
+		assistantTurn.Events = assistantEvents
+		hasEvents := len(assistantEvents) > 0
+		assistantEventsMu.Unlock()
+		if hasEvents {
+			a.turns = append(a.turns, assistantTurn)
+		}
+	}()
 
 	iterations := 0
 	for iterations < a.config.MaxIterations {
 		select {
 		case <-ctx.Done():
-			msgChan <- models.AgentError{Error: "agent generation cancelled"}
+			sendAndCollect(models.AgentError{Error: "agent generation cancelled"})
 			return
 		default:
 		}
 
 		a.waitForNextTurn()
-		msgChan <- models.AgentStartThinking{}
+
+		thinkingStartedAt := time.Now()
+		sendAndCollect(models.AgentStartThinking{})
 
 		response, err := a.generate(ctx)
 		if err != nil {
@@ -250,7 +294,7 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 				iterations += 1
 				continue
 			}
-			msgChan <- models.AgentError{Error: fmt.Sprintf("agent generation failed: %v", err)}
+			sendAndCollect(models.AgentError{Error: fmt.Sprintf("agent generation failed: %v", err)})
 			return
 		}
 
@@ -262,18 +306,21 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 		}
 
 		if response.Content != "" {
-			msgChan <- models.AgentThought{Content: response.Content}
+			durationSeconds := time.Since(thinkingStartedAt).Seconds()
+			sendAndCollect(models.AgentThought{
+				Content:         response.Content,
+				DurationSeconds: durationSeconds,
+			})
+			a.history = append(a.history, response)
 		}
 
-		a.messages = append(a.messages, response)
-		a.messageTimestamps = append(a.messageTimestamps, time.Now().UnixMilli())
-
 		if len(response.ToolCalls) == 0 {
-			content := response.Content
-			if content == "" {
-				content = "Sorry, I couldn't generate a meaningful response."
+			if response.Content == "" {
+				sendAndCollect(models.AgentError{Error: "agent returned an empty response"})
+				return
 			}
-			msgChan <- models.AgentFinalResponse{Content: content}
+
+			sendAndCollect(models.AgentFinalResponse{})
 			return
 		}
 
@@ -287,18 +334,24 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 		for _, toolCall := range response.ToolCalls {
 			go func(tc schema.ToolCall) {
 				toolID := int(atomic.AddInt64(&a.stats.NextExecutingToolID, 1))
-				msgChan <- models.AgentExecutingToolStart{
+				startedAt := time.Now()
+				sendAndCollect(models.AgentExecutingToolStart{
 					ID:   toolID,
 					Name: tc.Function.Name,
 					Args: tc.Function.Arguments,
-				}
+				})
+
 				result, err := a.invokeTool(ctx, tc)
-				msgChan <- models.AgentExecutingToolFinish{
-					ID:      toolID,
-					Name:    tc.Function.Name,
-					Args:    tc.Function.Arguments,
-					Content: result,
-				}
+
+				durationSeconds := time.Since(startedAt).Seconds()
+				sendAndCollect(models.AgentExecutingToolFinish{
+					ID:              toolID,
+					Name:            tc.Function.Name,
+					Args:            tc.Function.Arguments,
+					Content:         result,
+					DurationSeconds: durationSeconds,
+				})
+
 				toolResultChan <- toolResult{
 					call:   tc,
 					result: result,
@@ -319,21 +372,20 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 				if res.err != nil {
 					content = fmt.Sprintf("Tool %s call failed: %v", tc.Function.Name, res.err)
 				}
-				a.messages = append(a.messages, &schema.Message{
+				a.history = append(a.history, &schema.Message{
 					Role:       schema.Tool,
 					ToolCallID: tc.ID,
 					Content:    content,
 				})
-				a.messageTimestamps = append(a.messageTimestamps, time.Now().UnixMilli())
 			}
 		}
 
 		iterations += 1
 	}
 
-	msgChan <- models.AgentError{
+	sendAndCollect(models.AgentError{
 		Error: fmt.Sprintf("Sorry, I've reached the maximum iterations %d and still couldn't produce a final answer", a.config.MaxIterations),
-	}
+	})
 }
 
 func (a *Agent) waitForNextTurn() {
@@ -364,7 +416,7 @@ func (a *Agent) generate(ctx context.Context) (*schema.Message, error) {
 		return nil, err
 	}
 
-	response, err := modelWithTools.Generate(ctx, a.messages)
+	response, err := modelWithTools.Generate(ctx, a.history)
 	if err != nil {
 		return nil, err
 	}

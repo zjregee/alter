@@ -6,8 +6,6 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/schema"
-
-	"github.com/zjregee/alter/internal/service/tools"
 )
 
 const (
@@ -33,8 +31,4 @@ func GetBashTool(ctx context.Context) (*schema.ToolInfo, tool.InvokableTool, err
 	}
 
 	return info, t, nil
-}
-
-func init() {
-	tools.RegisterTool(BashToolName, GetBashTool)
 }

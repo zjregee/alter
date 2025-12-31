@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/cloudwego/eino/schema"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -55,7 +56,7 @@ func (a *App) AgentChat(threadID string, userInput string) error {
 				payload, _ := json.Marshal(m)
 				content = string(payload)
 			case models.AgentFinalResponse:
-				content = formatThreadMessage(m.Content)
+				content = ""
 				conversationSuccess = true
 			case models.AgentError:
 				content = formatThreadMessage(m.Error)
@@ -132,7 +133,7 @@ func (a *App) EditAndResendMessage(threadID string, userInput string, messageInd
 				payload, _ := json.Marshal(m)
 				content = string(payload)
 			case models.AgentFinalResponse:
-				content = formatThreadMessage(m.Content)
+				content = ""
 				conversationSuccess = true
 			case models.AgentError:
 				content = formatThreadMessage(m.Error)
@@ -212,7 +213,7 @@ func (a *App) RegenerateLastResponse(threadID string) error {
 				payload, _ := json.Marshal(m)
 				content = string(payload)
 			case models.AgentFinalResponse:
-				content = formatThreadMessage(m.Content)
+				content = ""
 			case models.AgentError:
 				content = formatThreadMessage(m.Error)
 			default:
@@ -239,7 +240,18 @@ func (a *App) generateAndUpdateThreadTitle(ctx context.Context, threadID string)
 		return fmt.Errorf("no messages in thread")
 	}
 
-	title, err := service.GenerateThreadTitle(ctx, messages)
+	schemaMessages := make([]*schema.Message, 0)
+	for _, turn := range messages {
+		if turn.Role == "user" && len(turn.Events) > 0 {
+			var userMsg models.UserMessage
+			if err := json.Unmarshal(turn.Events[0].Content, &userMsg); err == nil {
+				schemaMessages = append(schemaMessages, &schema.Message{Role: schema.User, Content: userMsg.Content})
+			}
+			break
+		}
+	}
+
+	title, err := service.GenerateThreadTitle(ctx, schemaMessages)
 	if err != nil {
 		return fmt.Errorf("failed to generate title: %w", err)
 	}
@@ -262,5 +274,10 @@ func (a *App) ListModels() []*models.ModelInfo {
 		return []*models.ModelInfo{}
 	}
 
-	return a.agentService.ListModels()
+	models := a.agentService.ListModels()
+	sort.SliceStable(models, func(i, j int) bool {
+		return models[i].Provider < models[j].Provider
+	})
+
+	return models
 }

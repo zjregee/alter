@@ -1,4 +1,4 @@
 .env
 /build/
-/frontend/
+/frontend/wailsjs/
 /internal/service/assets/skills/*/

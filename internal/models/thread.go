@@ -1,6 +1,8 @@
 package models
 
 import (
+	"encoding/json"
+
 	"github.com/cloudwego/eino/schema"
 )
 
@@ -13,8 +15,12 @@ type ThreadInfo struct {
 	UpdatedAt int64  `json:"updated_at"`
 }
 
-type ThreadMessage struct {
-	Role      schema.RoleType `json:"role"`
-	Content   string          `json:"content"`
-	Timestamp int64           `json:"timestamp"`
+type MarshaledThreadMessage struct {
+	Type    AgentMessageType `json:"type"`
+	Content json.RawMessage  `json:"content"`
+}
+
+type ThreadMessageTurn struct {
+	Role   schema.RoleType           `json:"role"`
+	Events []*MarshaledThreadMessage `json:"events"`
 }

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -160,7 +161,7 @@ func (s *AgentService) StreamRequestToThread(ctx context.Context, id string, use
 	return outChan, nil
 }
 
-func (s *AgentService) EditAndResendRequestToThread(ctx context.Context, id string, messageIndex int, userInput string) (<-chan models.AgentMessage, error) {
+func (s *AgentService) EditAndResendRequestToThread(ctx context.Context, id string, userMessageIndex int, userInput string) (<-chan models.AgentMessage, error) {
 	s.mu.RLock()
 	_, exists := s.agents[id]
 	s.mu.RUnlock()
@@ -177,8 +178,26 @@ func (s *AgentService) EditAndResendRequestToThread(ctx context.Context, id stri
 		return nil, fmt.Errorf("thread not found: %s", id)
 	}
 
-	if err := current.Agent.TruncateMessagesSince(messageIndex); err != nil {
-		return nil, fmt.Errorf("failed to truncate thread messages since index %d: %w", messageIndex, err)
+	turns := current.Agent.GetTurns()
+	userIndex := -1
+	turnIndex := -1
+	for i, turn := range turns {
+		if turn.Role != schema.User {
+			continue
+		}
+		userIndex += 1
+		if userIndex == userMessageIndex {
+			turnIndex = i
+			break
+		}
+	}
+
+	if turnIndex == -1 {
+		return nil, fmt.Errorf("invalid user message index: %d", userMessageIndex)
+	}
+
+	if err := current.Agent.TruncateMessagesSince(turnIndex); err != nil {
+		return nil, fmt.Errorf("failed to truncate thread messages since index %d: %w", turnIndex, err)
 	}
 
 	current.Info.UpdatedAt = time.Now().UnixMilli()
@@ -217,36 +236,34 @@ func (s *AgentService) RegenerateLastResponseToThread(ctx context.Context, id st
 		return nil, fmt.Errorf("thread not found: %s", id)
 	}
 
-	messages, _ := current.Agent.GetMessagesWithTimestamps()
-
-	var lastUserMessage *schema.Message
-	var lastUserIndex int
-
-	nonSystemIndex := -1
-	for _, msg := range messages {
-		if msg.Role == schema.System {
+	turns := current.Agent.GetTurns()
+	lastUserTurnIndex := -1
+	lastUserContent := ""
+	for i := len(turns) - 1; i >= 0; i -= 1 {
+		if turns[i].Role != schema.User {
 			continue
 		}
-		nonSystemIndex += 1
-		if msg.Role == schema.User {
-			lastUserMessage = msg
-			lastUserIndex = nonSystemIndex
-			break
+
+		var userMsg models.UserMessage
+		if err := json.Unmarshal(turns[i].Events[0].Content, &userMsg); err != nil {
+			continue
 		}
+
+		lastUserTurnIndex = i
+		lastUserContent = userMsg.Content
+		break
 	}
 
-	if lastUserMessage == nil {
+	if lastUserTurnIndex == -1 {
 		return nil, fmt.Errorf("no user message found to regenerate from")
 	}
 
-	userContent := lastUserMessage.Content
-
-	if err := current.Agent.TruncateMessagesSince(lastUserIndex); err != nil {
-		return nil, fmt.Errorf("failed to truncate thread messages since index %d: %w", lastUserIndex, err)
+	if err := current.Agent.TruncateMessagesSince(lastUserTurnIndex); err != nil {
+		return nil, fmt.Errorf("failed to truncate thread messages since index %d: %w", lastUserTurnIndex, err)
 	}
 
 	current.Info.UpdatedAt = time.Now().UnixMilli()
-	originChan := current.Agent.StreamRequest(ctx, userContent)
+	originChan := current.Agent.StreamRequest(ctx, lastUserContent)
 
 	outChan := make(chan models.AgentMessage)
 	go func(thread *Thread) {
@@ -285,7 +302,7 @@ func (s *AgentService) CancelStreamRequestToThread(id string) error {
 	return nil
 }
 
-func (s *AgentService) GetThreadMessages(id string) ([]*models.ThreadMessage, error) {
+func (s *AgentService) GetThreadMessages(id string) ([]*models.ThreadMessageTurn, error) {
 	s.mu.RLock()
 	thread, exists := s.agents[id]
 	s.mu.RUnlock()
@@ -294,49 +311,19 @@ func (s *AgentService) GetThreadMessages(id string) ([]*models.ThreadMessage, er
 		return nil, fmt.Errorf("thread not found: %s", id)
 	}
 
-	msgs, timestamps := thread.Agent.GetMessagesWithTimestamps()
-	messages := make([]*models.ThreadMessage, 0)
-	for i, msg := range msgs {
-		if msg.Role == schema.System {
-			continue
-		}
-
-		messages = append(messages, &models.ThreadMessage{
-			Role:      msg.Role,
-			Content:   msg.Content,
-			Timestamp: timestamps[i],
-		})
-	}
-
-	return messages, nil
+	return thread.Agent.GetTurns(), nil
 }
 
 func (s *AgentService) IsFirstMessageToThread(id string) (bool, error) {
 	s.mu.RLock()
-	_, exists := s.agents[id]
+	thread, exists := s.agents[id]
 	s.mu.RUnlock()
 
 	if !exists {
 		return false, fmt.Errorf("thread not found: %s", id)
 	}
 
-	s.mu.RLock()
-	current, found := s.agents[id]
-	if !found {
-		return false, fmt.Errorf("thread not found: %s", id)
-	}
-	messages, _ := current.Agent.GetMessagesWithTimestamps()
-	s.mu.RUnlock()
-
-	userMessageCount := 0
-	for _, msg := range messages {
-		if msg.Role == schema.User {
-			userMessageCount += 1
-			break
-		}
-	}
-
-	return userMessageCount == 0, nil
+	return len(thread.Agent.GetTurns()) == 0, nil
 }
 
 func (s *AgentService) UpdateThreadModel(id string, modelID string) error {
@@ -436,7 +423,7 @@ func (s *AgentService) loadThreadsFromStorage(ctx context.Context) error {
 			WorkDir: info.WorkDir,
 		}
 
-		agent, err := NewAgentWithMessages(ctx, info.ID, config, stored.Messages, stored.MessageTimestamps, stored.Stats)
+		agent, err := NewAgentWithMessages(ctx, info.ID, config, stored.History, stored.Turns, stored.Stats)
 		if err != nil {
 			return err
 		}
@@ -455,20 +442,17 @@ func (s *AgentService) persistThread(thread *Thread) error {
 		return fmt.Errorf("thread is nil")
 	}
 
-	messages, timestamps := thread.Agent.GetMessagesWithTimestamps()
-	if len(messages) != len(timestamps) {
-		return fmt.Errorf("thread messages and timestamps mismatch")
-	}
-
+	turns := thread.Agent.GetTurns()
+	history := thread.Agent.GetHistory()
 	stats := thread.Agent.Stats()
 	if stats == nil {
 		return fmt.Errorf("thread stats is nil")
 	}
 
-	return storage.SaveThread(thread.Info, messages, timestamps, stats)
+	return storage.SaveThread(thread.Info, history, turns, stats)
 }
 
-func GenerateThreadTitle(ctx context.Context, messages []*models.ThreadMessage) (string, error) {
+func GenerateThreadTitle(ctx context.Context, messages []*schema.Message) (string, error) {
 	if len(messages) == 0 {
 		return defaultThreadTitle, nil
 	}

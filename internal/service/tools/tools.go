@@ -5,11 +5,13 @@ import (
 
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
+
+	"github.com/zjregee/alter/internal/service/tools/bash"
 )
 
 var registeredTools = make(map[string]func(context.Context) (*schema.ToolInfo, tool.InvokableTool, error))
 
-func RegisterTool(name string, getToolFunc func(context.Context) (*schema.ToolInfo, tool.InvokableTool, error)) {
+func registerTool(name string, getToolFunc func(context.Context) (*schema.ToolInfo, tool.InvokableTool, error)) {
 	registeredTools[name] = getToolFunc
 }
 
@@ -34,4 +36,8 @@ func GetAllRegisteredTools(ctx context.Context) ([]*schema.ToolInfo, map[string]
 	}
 
 	return allToolInfos, allToolsMap, nil
+}
+
+func init() {
+	registerTool(bash.BashToolName, bash.GetBashTool)
 }

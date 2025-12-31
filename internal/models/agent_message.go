@@ -3,6 +3,7 @@ package models
 type AgentMessageType string
 
 const (
+	AgentMessageTypeUserMessage         AgentMessageType = "user_message"
 	AgentMessageTypeStartThinking       AgentMessageType = "start_thinking"
 	AgentMessageTypeThought             AgentMessageType = "thought"
 	AgentMessageTypeExecutingToolStart  AgentMessageType = "executing_tool_start"
@@ -15,6 +16,14 @@ type AgentMessage interface {
 	GetType() AgentMessageType
 }
 
+type UserMessage struct {
+	Content string `json:"content"`
+}
+
+func (m UserMessage) GetType() AgentMessageType {
+	return AgentMessageTypeUserMessage
+}
+
 type AgentStartThinking struct{}
 
 func (m AgentStartThinking) GetType() AgentMessageType {
@@ -22,7 +31,8 @@ func (m AgentStartThinking) GetType() AgentMessageType {
 }
 
 type AgentThought struct {
-	Content string `json:"content"`
+	Content         string  `json:"content"`
+	DurationSeconds float64 `json:"duration_seconds,omitempty"`
 }
 
 func (m AgentThought) GetType() AgentMessageType {
@@ -40,19 +50,18 @@ func (m AgentExecutingToolStart) GetType() AgentMessageType {
 }
 
 type AgentExecutingToolFinish struct {
-	ID      int    `json:"id"`
-	Name    string `json:"name"`
-	Args    string `json:"args"`
-	Content string `json:"content"`
+	ID              int     `json:"id"`
+	Name            string  `json:"name"`
+	Args            string  `json:"args"`
+	Content         string  `json:"content"`
+	DurationSeconds float64 `json:"duration_seconds,omitempty"`
 }
 
 func (m AgentExecutingToolFinish) GetType() AgentMessageType {
 	return AgentMessageTypeExecutingToolFinish
 }
 
-type AgentFinalResponse struct {
-	Content string `json:"content"`
-}
+type AgentFinalResponse struct{}
 
 func (m AgentFinalResponse) GetType() AgentMessageType {
 	return AgentMessageTypeFinalResponse

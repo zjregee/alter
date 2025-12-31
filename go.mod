@@ -3,8 +3,8 @@ module github.com/zjregee/alter
 go 1.24.1
 
 require (
-	github.com/cloudwego/eino v0.7.12
-	github.com/cloudwego/eino-ext/components/model/ark v0.1.57
+	github.com/cloudwego/eino v0.7.17
+	github.com/cloudwego/eino-ext/components/model/ark v0.1.58
 	github.com/cloudwego/eino-ext/components/model/deepseek v0.1.1
 	github.com/cloudwego/eino-ext/components/model/openai v0.1.6
 	github.com/google/uuid v1.6.0
@@ -29,7 +29,7 @@ require (
 	github.com/eino-contrib/jsonschema v1.0.3 // indirect
 	github.com/evanphx/json-patch v0.5.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/godbus/dbus/v5 v5.2.1 // indirect
+	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/goph/emperror v0.17.2 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/jchv/go-winloader v0.0.0-20250406163304-c1995be93bd1 // indirect
@@ -64,13 +64,12 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
-	github.com/volcengine/volc-sdk-golang v1.0.232 // indirect
-	github.com/volcengine/volcengine-go-sdk v1.1.55 // indirect
+	github.com/volcengine/volc-sdk-golang v1.0.233 // indirect
+	github.com/volcengine/volcengine-go-sdk v1.2.4 // indirect
 	github.com/wailsapp/go-webview2 v1.0.23 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/yargevad/filepathx v1.0.0 // indirect
-	go.mongodb.org/mongo-driver v1.17.6 // indirect
 	golang.org/x/arch v0.23.0 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect

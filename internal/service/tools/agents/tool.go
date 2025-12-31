@@ -6,8 +6,6 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/schema"
-
-	"github.com/zjregee/alter/internal/service/tools"
 )
 
 const (
@@ -25,8 +23,4 @@ func GetAgentsTool(ctx context.Context) (*schema.ToolInfo, tool.InvokableTool, e
 		return nil, nil, err
 	}
 	return info, t, nil
-}
-
-func init() {
-	tools.RegisterTool(AgentsToolName, GetAgentsTool)
 }

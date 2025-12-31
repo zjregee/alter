@@ -17,26 +17,26 @@ const (
 const defaultWorkspacePath = "/Users/zjregee/Code/alter"
 
 type ThreadRecord struct {
-	Info              *models.ThreadInfo `json:"info"`
-	Messages          []*schema.Message  `json:"messages"`
-	MessageTimestamps []int64            `json:"message_timestamps"`
-	Stats             *models.AgentStats `json:"stats"`
+	Info    *models.ThreadInfo          `json:"info"`
+	History []*schema.Message           `json:"history"`
+	Turns   []*models.ThreadMessageTurn `json:"turns"`
+	Stats   *models.AgentStats          `json:"stats"`
 }
 
 type WorkspaceInfosRecord struct {
 	Infos []*models.WorkspaceInfo `json:"infos"`
 }
 
-func SaveThread(info *models.ThreadInfo, messages []*schema.Message, messageTimestamps []int64, stats *models.AgentStats) error {
+func SaveThread(info *models.ThreadInfo, history []*schema.Message, turns []*models.ThreadMessageTurn, stats *models.AgentStats) error {
 	if info == nil {
 		return fmt.Errorf("thread info is required")
 	}
 
 	payload := ThreadRecord{
-		Info:              info,
-		Messages:          messages,
-		MessageTimestamps: messageTimestamps,
-		Stats:             stats,
+		Info:    info,
+		History: history,
+		Turns:   turns,
+		Stats:   stats,
 	}
 
 	data, err := json.Marshal(payload)

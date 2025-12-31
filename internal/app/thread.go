@@ -62,7 +62,7 @@ func (a *App) DeleteThread(threadID string) error {
 	return nil
 }
 
-func (a *App) GetThreadMessages(threadID string) ([]*models.ThreadMessage, error) {
+func (a *App) GetThreadMessages(threadID string) ([]*models.ThreadMessageTurn, error) {
 	if a.agentService == nil {
 		return nil, fmt.Errorf("agent service not initialized")
 	}
@@ -70,7 +70,12 @@ func (a *App) GetThreadMessages(threadID string) ([]*models.ThreadMessage, error
 		return nil, fmt.Errorf("thread ID is required")
 	}
 
-	return a.agentService.GetThreadMessages(threadID)
+	turns, err := a.agentService.GetThreadMessages(threadID)
+	if err != nil {
+		return nil, err
+	}
+
+	return formatThreadTurns(turns), nil
 }
 
 func (a *App) UpdateThreadModel(threadID, modelID string) error {

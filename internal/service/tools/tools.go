@@ -7,6 +7,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/zjregee/alter/internal/service/tools/bash"
+	"github.com/zjregee/alter/internal/service/tools/feed"
 )
 
 var registeredTools = make(map[string]func(context.Context) (*schema.ToolInfo, tool.InvokableTool, error))
@@ -40,4 +41,5 @@ func GetAllRegisteredTools(ctx context.Context) ([]*schema.ToolInfo, map[string]
 
 func init() {
 	registerTool(bash.BashToolName, bash.GetBashTool)
+	registerTool(feed.PushFeedToolName, feed.GetPushFeedTool)
 }

@@ -11,7 +11,8 @@ const sendBtn = document.querySelector('.send-btn');
 const threadList = document.querySelector('.thread-list');
 const chatMessages = document.querySelector('.chat-messages');
 const searchInput = document.querySelector('.thread-search');
-const searchContainer = document.querySelector('.sidebar-header .sidebar-actions');
+const searchBtn = document.querySelector('.search-btn');
+const searchContainer = document.querySelector('#chat-view-sidebar .sidebar-actions');
 const sidebar = document.querySelector('.sidebar');
 const sidebarResizer = document.querySelector('.sidebar-resizer');
 const workspaceSwitcher = document.querySelector('.workspace-switcher');
@@ -27,6 +28,7 @@ const modelToggleLabel = document.querySelector('.model-toggle-label');
 const modelDropdown = document.querySelector('.model-dropdown');
 const modelList = document.querySelector('.model-list');
 const modelSearchInput = document.querySelector('.model-search-input');
+const viewSwitcher = document.querySelector('.view-switcher');
 
 // 状态变量
 let isProcessing = false;
@@ -59,7 +61,42 @@ window.addEventListener('DOMContentLoaded', async () => {
         await createNewThread();
     }
     chatInput.focus();
+    setupViewSwitcher();
 });
+
+function setupViewSwitcher() {
+    if (!viewSwitcher) return;
+    viewSwitcher.addEventListener('click', (e) => {
+        const viewBtn = e.target.closest('.view-btn');
+        if (!viewBtn) return;
+
+        const view = viewBtn.dataset.view;
+        if (view) {
+            switchView(view);
+        }
+    });
+}
+
+function switchView(viewName) {
+    // Switch buttons
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === viewName);
+    });
+
+    // Switch sidebar content
+    document.querySelectorAll('.sidebar-content .view-content').forEach(content => {
+        content.classList.toggle('active', content.id === `${viewName}-view-sidebar`);
+    });
+
+    // Switch main content
+    document.querySelectorAll('.main-content .view-content').forEach(content => {
+        content.classList.toggle('active', content.id === `${viewName}-view-main`);
+    });
+
+    if (viewName === 'notifications') {
+        loadFeedTopics();
+    }
+}
 
 sendBtn.addEventListener('click', async () => {
     const message = chatInput.value.trim();
@@ -759,7 +796,7 @@ async function createNewThread() {
 }
 
 // Event Listeners Setup
-document.querySelector('.sidebar-header .new-thread-btn')?.addEventListener('click', createNewThread);
+document.querySelector('#chat-view-sidebar .new-thread-btn')?.addEventListener('click', createNewThread);
 
 if (workspaceToggle) {
     workspaceToggle.addEventListener('click', (e) => {
@@ -978,4 +1015,180 @@ function getWorkspaceName(path) {
 function getDefaultWorkspacePath() {
     const fallback = workspacesCache.find(w => w.is_default);
     return fallback ? fallback.path : (workspacesCache[0]?.path || '');
+}
+
+// --- Feed View ---
+const feedTopicsList = document.querySelector('.feed-topics-list');
+const feedArticlesList = document.querySelector('.feed-articles-list');
+
+let feedTopicsCache = [];
+let feedArticlesCache = [];
+let currentFeedTopicId = '';
+let feedTopicsLoading = false;
+let feedArticlesLoading = false;
+let feedTopicsError = '';
+let feedArticlesError = '';
+let feedArticlesRequestToken = 0;
+
+function renderFeedTopics() {
+    if (!feedTopicsList) return;
+    feedTopicsList.innerHTML = '';
+    if (feedTopicsLoading) {
+        feedTopicsList.innerHTML = '<div class="feed-empty">正在加载主题...</div>';
+        return;
+    }
+    if (feedTopicsError) {
+        feedTopicsList.innerHTML = `<div class="feed-empty">${feedTopicsError}</div>`;
+        return;
+    }
+    if (feedTopicsCache.length === 0) {
+        feedTopicsList.innerHTML = '<div class="feed-empty">暂无主题</div>';
+        return;
+    }
+
+    feedTopicsCache.forEach(topic => {
+        const topicEl = document.createElement('div');
+        topicEl.className = 'feed-topic-item';
+        topicEl.textContent = topic;
+        topicEl.dataset.topicId = topic;
+        if (topic === currentFeedTopicId) {
+            topicEl.classList.add('active');
+        }
+        topicEl.addEventListener('click', async () => {
+            if (topic === currentFeedTopicId) return;
+            currentFeedTopicId = topic;
+            renderFeedTopics();
+            await loadFeedArticles(topic);
+        });
+        feedTopicsList.appendChild(topicEl);
+    });
+}
+
+function renderFeedArticles() {
+    if (!feedArticlesList) return;
+    if (feedArticlesLoading) {
+        feedArticlesList.innerHTML = '<div class="feed-empty">正在加载内容...</div>';
+        return;
+    }
+    if (!currentFeedTopicId) {
+        feedArticlesList.innerHTML = '<div class="feed-empty">选择一个主题以查看内容。</div>';
+        return;
+    }
+    if (feedArticlesError) {
+        feedArticlesList.innerHTML = `<div class="feed-empty">${feedArticlesError}</div>`;
+        return;
+    }
+    if (feedArticlesCache.length === 0) {
+        feedArticlesList.innerHTML = '<div class="feed-empty">暂无内容</div>';
+        return;
+    }
+
+    feedArticlesList.innerHTML = '';
+    feedArticlesCache.forEach(article => {
+        const articleEl = document.createElement('div');
+        articleEl.className = 'feed-article-item';
+        const headerEl = document.createElement('div');
+        headerEl.className = 'feed-article-header';
+
+        const titleEl = document.createElement('h2');
+        titleEl.className = 'feed-article-title';
+        titleEl.textContent = article?.title || '未命名';
+
+        const timestampEl = document.createElement('span');
+        timestampEl.className = 'feed-article-timestamp';
+        timestampEl.textContent = formatFeedTimestamp(article?.created_at);
+
+        const contentEl = document.createElement('p');
+        contentEl.className = 'feed-article-content';
+        contentEl.textContent = article?.content || '';
+
+        headerEl.appendChild(titleEl);
+        headerEl.appendChild(timestampEl);
+        articleEl.appendChild(headerEl);
+        articleEl.appendChild(contentEl);
+        feedArticlesList.appendChild(articleEl);
+    });
+}
+
+async function loadFeedTopics() {
+    if (!window.go?.app?.App?.ListFeedTopics) {
+        feedTopicsCache = [];
+        feedTopicsError = 'Feed 暂不可用';
+        renderFeedTopics();
+        return;
+    }
+    if (feedTopicsLoading) return;
+    feedTopicsLoading = true;
+    feedTopicsError = '';
+    renderFeedTopics();
+    try {
+        const topics = await window.go.app.App.ListFeedTopics();
+        feedTopicsCache = Array.isArray(topics) ? topics : [];
+        if (!feedTopicsCache.includes(currentFeedTopicId)) {
+            currentFeedTopicId = feedTopicsCache[0] || '';
+        }
+    } catch (error) {
+        console.error('加载Feed主题失败:', error);
+        feedTopicsCache = [];
+        feedTopicsError = '加载Feed主题失败';
+    }
+    feedTopicsLoading = false;
+    renderFeedTopics();
+    if (feedTopicsError || feedTopicsCache.length === 0) {
+        feedArticlesCache = [];
+        feedArticlesLoading = false;
+        feedArticlesError = '';
+        renderFeedArticles();
+        return;
+    }
+    await loadFeedArticles(currentFeedTopicId);
+}
+
+async function loadFeedArticles(topic) {
+    if (!feedArticlesList) return;
+    if (!topic) {
+        feedArticlesCache = [];
+        feedArticlesLoading = false;
+        feedArticlesError = '';
+        renderFeedArticles();
+        return;
+    }
+    if (!window.go?.app?.App?.LoadFeedTopic) {
+        feedArticlesCache = [];
+        feedArticlesLoading = false;
+        feedArticlesError = 'Feed 暂不可用';
+        renderFeedArticles();
+        return;
+    }
+    const requestToken = ++feedArticlesRequestToken;
+    feedArticlesLoading = true;
+    feedArticlesError = '';
+    renderFeedArticles();
+    try {
+        const items = await window.go.app.App.LoadFeedTopic(topic);
+        if (requestToken !== feedArticlesRequestToken) return;
+        feedArticlesCache = Array.isArray(items) ? items : [];
+    } catch (error) {
+        if (requestToken !== feedArticlesRequestToken) return;
+        console.error('加载Feed内容失败:', error);
+        feedArticlesCache = [];
+        feedArticlesError = '加载Feed内容失败';
+    }
+    if (requestToken !== feedArticlesRequestToken) return;
+    feedArticlesLoading = false;
+    renderFeedArticles();
+}
+
+function formatFeedTimestamp(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    });
 }

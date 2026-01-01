@@ -150,13 +150,15 @@
                     <div class="feed-detail-body">
                         <h2 id="feed-detail-title"></h2>
                         <div id="feed-detail-timestamp"></div>
-                        <p id="feed-detail-content"></p>
+                        <div id="feed-detail-content" class="markdown-body"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js" defer></script>
+    <script src="script.js" defer></script>
 </body>
 </html>

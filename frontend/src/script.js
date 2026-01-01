@@ -217,7 +217,7 @@ function appendThoughtBlock(text, durationInSeconds) {
             <span>Thought${durationText}</span>
         </div>
         <div class="thought-content">
-            <p></p>
+            <div class="markdown-body"></div>
         </div>
     `;
     
@@ -229,7 +229,7 @@ function appendThoughtBlock(text, durationInSeconds) {
             displayText = JSON.stringify(displayText, null, 2);
         }
     }
-    thoughtBlock.querySelector('p').textContent = displayText;
+    renderMarkdownInto(thoughtBlock.querySelector('.markdown-body'), displayText);
     lastThoughtText = typeof displayText === 'string' ? displayText.trim() : String(displayText).trim();
     lastThoughtElement = thoughtBlock;
 
@@ -956,9 +956,9 @@ function appendTurnActions(container, allowRegenerate) {
 function getTurnCopyText(container) {
     if (!container) return '';
     const parts = [];
-    const paragraphs = container.querySelectorAll('.thought-content p, .message-content > p');
-    paragraphs.forEach((p) => {
-        const text = p.textContent?.trim();
+    const blocks = container.querySelectorAll('.thought-content, .message-content > p');
+    blocks.forEach((block) => {
+        const text = block.textContent?.trim();
         if (text) parts.push(text);
     });
     return parts.join('\n\n');
@@ -1054,6 +1054,13 @@ let feedArticlesLoading = false;
 let feedTopicsError = '';
 let feedArticlesError = '';
 let feedArticlesRequestToken = 0;
+
+if (window.marked?.setOptions) {
+    window.marked.setOptions({
+        gfm: true,
+        breaks: true
+    });
+}
 
 if (feedBackBtn) {
     feedBackBtn.addEventListener('click', () => {
@@ -1170,7 +1177,7 @@ function renderFeedArticles() {
         articleEl.addEventListener('click', () => {
             if (feedDetailTitle) feedDetailTitle.textContent = article?.title || '未命名';
             if (feedDetailTimestamp) feedDetailTimestamp.textContent = formatFeedTimestamp(article?.created_at);
-            if (feedDetailContent) feedDetailContent.textContent = article?.content || '';
+            renderFeedDetailMarkdown(article?.content || '');
             if (feedArticlesList) feedArticlesList.style.display = 'none';
             if (feedDetailView) feedDetailView.style.display = 'flex';
         });
@@ -1259,4 +1266,24 @@ function formatFeedTimestamp(timestamp) {
         minute: '2-digit',
         hour12: false
     });
+}
+
+function renderFeedDetailMarkdown(content) {
+    if (!feedDetailContent) return;
+    renderMarkdownInto(feedDetailContent, content);
+}
+
+function renderMarkdownInto(target, content) {
+    if (!target) return;
+    if (!content) {
+        target.textContent = '';
+        return;
+    }
+    if (window.marked?.parse && window.DOMPurify?.sanitize) {
+        const html = window.marked.parse(content);
+        const safeHtml = window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+        target.innerHTML = safeHtml;
+        return;
+    }
+    target.textContent = content;
 }

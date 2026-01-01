@@ -383,6 +383,7 @@ select {
     word-wrap: break-word;
 }
 
+
 .message-actions {
     display: flex;
     justify-content: flex-end;
@@ -459,10 +460,11 @@ select {
     background: transparent;
     border: 1px solid #343b47;
     border-radius: 10px;
-    margin: 6px 0;
+    margin: 4px 0;
     overflow: hidden;
     width: 100%;
 }
+
 
 .tool-call-header {
     display: flex;
@@ -1044,7 +1046,7 @@ select {
 
 /* New styles for thought blocks */
 .thought-block {
-    margin: 6px 0;
+    margin: 4px 0;
     padding-bottom: 0;
 }
 
@@ -1069,7 +1071,7 @@ select {
 }
 
 .thought-content {
-    padding: 4px 0 6px;
+    padding: 4px 0 4px;
 }
 
 .thought-content p {
@@ -1078,6 +1080,14 @@ select {
     font-size: 12px;
     white-space: pre-wrap;
     word-wrap: break-word;
+}
+
+.message-content .thought-block + .tool-call {
+    margin-top: 1px;
+}
+
+.message-content .tool-call + .thought-block {
+    margin-top: 2px;
 }
 
 /* --- Feed View Styles --- */
@@ -1180,7 +1190,7 @@ select {
 
 #feed-detail-view {
     height: 100%;
-    overflow-y: auto;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
 }
@@ -1190,10 +1200,13 @@ select {
     align-items: center;
     height: 50px;
     padding: 8px 24px;
+    flex: 0 0 auto;
 }
 
 .feed-detail-body {
     padding: 8px 24px 24px;
+    overflow-y: auto;
+    flex: 1 1 auto;
 }
 
 #feed-back-btn {
@@ -1237,8 +1250,120 @@ select {
     font-size: 12px;
     line-height: 1.6;
     color: var(--text-primary);
-    white-space: pre-wrap;
     word-wrap: break-word;
+}
+
+.markdown-body {
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-primary);
+}
+
+.markdown-body > :first-child {
+    margin-top: 0;
+}
+
+.markdown-body > :last-child {
+    margin-bottom: 0;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+    margin: 12px 0 6px;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.markdown-body h1 { font-size: 18px; }
+.markdown-body h2 { font-size: 16px; }
+.markdown-body h3 { font-size: 14px; }
+.markdown-body h4 { font-size: 13px; }
+.markdown-body h5,
+.markdown-body h6 { font-size: 12px; }
+
+.markdown-body p {
+    margin: 0 0 8px;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+    margin: 0 0 8px;
+    padding-left: 2px;
+    list-style-position: inside;
+}
+
+.markdown-body li {
+    margin: 4px 0;
+}
+
+.markdown-body blockquote {
+    margin: 8px 0;
+    padding: 8px 12px;
+    border-left: 3px solid var(--panel-border);
+    background: var(--panel-bg);
+    color: var(--text-secondary);
+}
+
+.markdown-body code {
+    padding: 2px 4px;
+    border-radius: 4px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+}
+
+.markdown-body pre {
+    margin: 8px 0;
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--panel-bg-alt);
+    border: 1px solid var(--panel-border);
+    overflow: auto;
+}
+
+.markdown-body pre code {
+    padding: 0;
+    border: none;
+    background: transparent;
+    font-size: 11px;
+}
+
+.markdown-body a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.markdown-body a:hover {
+    text-decoration: underline;
+}
+
+.markdown-body img {
+    max-width: 100%;
+    border-radius: 6px;
+}
+
+.markdown-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 11px;
+}
+
+.markdown-body th,
+.markdown-body td {
+    border: 1px solid var(--panel-border);
+    padding: 6px 8px;
+    text-align: left;
+}
+
+.markdown-body th {
+    background: var(--panel-bg-alt);
+    color: var(--text-primary);
 }
 
 

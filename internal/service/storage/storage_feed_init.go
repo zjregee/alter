@@ -87,6 +87,20 @@ If you notice anything odd, capture the item title and time so we can trace the 
 Thanks for the patience while the rebuild ran in the background.`,
 			CreatedAt: now.Add(-12 * time.Hour).UnixMilli(),
 		},
+		{
+			ID:        "seed-guide-1",
+			Topic:     "Guides",
+			Title:     "Reading a Long Feed Entry",
+			Content:   "# How to read a long entry\n\nThis is a longer example designed to stress the markdown renderer. It includes headings, lists, emphasis, and code blocks.\n\n## Quick scan checklist\n\n- **Title** tells you the outcome\n- _Timestamp_ tells you the context\n- First paragraph tells you the impact\n\n### Example snippet\n\nUse the output structure to reason about next steps:\n\n```json\n{\n  \"topic\": \"Guides\",\n  \"title\": \"Reading a Long Feed Entry\",\n  \"status\": \"ok\",\n  \"notes\": [\"scan\", \"open\", \"act\"]\n}\n```\n\n## Deep dive\n\nWhen you open a long entry, look for the first concrete detail: a number, a date, or a specific change. That detail anchors your understanding and helps you decide what to do next.\n\nIf the entry has multiple sections, skim the headings first, then jump to the part that affects your workflow. Do not read line by line unless you need the nuance.\n\n> Tip: If a section feels dense, pause and copy the key line into your task list. It saves time later.\n\n### Final note\n\nClose with a clear action: who owns it, what happens next, and when to follow up.",
+			CreatedAt: now.Add(-8 * time.Hour).UnixMilli(),
+		},
+		{
+			ID:        "seed-guide-2",
+			Topic:     "Guides",
+			Title:     "Markdown Stress Test",
+			Content:   "# Markdown Stress Test\n\nThis entry mixes multiple markdown elements to verify rendering and layout behavior.\n\n## Section: Lists and tables\n\n1. First item with **bold** text\n2. Second item with _italic_ text\n3. Third item with `inline code`\n\n| Feature | Status | Notes |\n| --- | --- | --- |\n| Headings | ✅ | Multiple levels |\n| Lists | ✅ | Ordered + unordered |\n| Code | ✅ | Inline + block |\n\n## Section: Links and emphasis\n\nReference: [Alter docs](https://example.com)\n\nRemember: **clarity beats volume**. Write fewer lines but make each line carry weight.\n\n## Section: Code block\n\n```bash\n./run.sh --topic \"Guides\" --limit 5\n```\n\n## Closing\n\nIf any section renders oddly, note the heading and the element type so we can reproduce it quickly.",
+			CreatedAt: now.Add(-6 * time.Hour).UnixMilli(),
+		},
 	}
 
 	for _, item := range items {

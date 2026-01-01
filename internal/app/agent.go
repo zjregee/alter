@@ -7,9 +7,9 @@ import (
 	"sort"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/zjregee/alter/internal/models"
+	"github.com/zjregee/alter/internal/notify"
 	"github.com/zjregee/alter/internal/service"
 )
 
@@ -32,10 +32,7 @@ func (a *App) AgentChat(threadID string, userInput string) error {
 	go func() {
 		msgChan, err := a.agentService.StreamRequestToThread(a.ctx, threadID, userInput)
 		if err != nil {
-			runtime.EventsEmit(a.ctx, "agent:message", map[string]string{
-				"type":    "error",
-				"content": fmt.Sprintf("Failed to start agent: %v", err),
-			})
+			notify.EmitAgentMessage(a.ctx, "error", fmt.Sprintf("Failed to start agent: %v", err))
 			return
 		}
 
@@ -64,10 +61,7 @@ func (a *App) AgentChat(threadID string, userInput string) error {
 				continue
 			}
 
-			runtime.EventsEmit(a.ctx, "agent:message", map[string]string{
-				"type":    msgType,
-				"content": content,
-			})
+			notify.EmitAgentMessage(a.ctx, msgType, content)
 		}
 
 		if isFirstMessage && conversationSuccess {
@@ -104,17 +98,11 @@ func (a *App) EditAndResendMessage(threadID string, userInput string, messageInd
 	go func() {
 		msgChan, err := a.agentService.EditAndResendRequestToThread(a.ctx, threadID, messageIndex, userInput)
 		if err != nil {
-			runtime.EventsEmit(a.ctx, "agent:message", map[string]string{
-				"type":    "error",
-				"content": fmt.Sprintf("Failed to edit and resend message: %v", err),
-			})
+			notify.EmitAgentMessage(a.ctx, "error", fmt.Sprintf("Failed to edit and resend message: %v", err))
 			return
 		}
 
-		runtime.EventsEmit(a.ctx, "agent:messages_truncated", map[string]any{
-			"thread_id":  threadID,
-			"from_index": messageIndex,
-		})
+		notify.EmitAgentMessagesTruncated(a.ctx, threadID, messageIndex)
 
 		var conversationSuccess bool
 		for msg := range msgChan {
@@ -141,10 +129,7 @@ func (a *App) EditAndResendMessage(threadID string, userInput string, messageInd
 				continue
 			}
 
-			runtime.EventsEmit(a.ctx, "agent:message", map[string]string{
-				"type":    msgType,
-				"content": content,
-			})
+			notify.EmitAgentMessage(a.ctx, msgType, content)
 		}
 
 		if isEditingFirstMessage && conversationSuccess {
@@ -185,17 +170,11 @@ func (a *App) RegenerateLastResponse(threadID string) error {
 	go func() {
 		msgChan, err := a.agentService.RegenerateLastResponseToThread(a.ctx, threadID)
 		if err != nil {
-			runtime.EventsEmit(a.ctx, "agent:message", map[string]string{
-				"type":    "error",
-				"content": fmt.Sprintf("Failed to regenerate response: %v", err),
-			})
+			notify.EmitAgentMessage(a.ctx, "error", fmt.Sprintf("Failed to regenerate response: %v", err))
 			return
 		}
 
-		runtime.EventsEmit(a.ctx, "agent:messages_truncated", map[string]any{
-			"thread_id":  threadID,
-			"from_index": lastUserIndex,
-		})
+		notify.EmitAgentMessagesTruncated(a.ctx, threadID, lastUserIndex)
 
 		for msg := range msgChan {
 			var content string
@@ -220,10 +199,7 @@ func (a *App) RegenerateLastResponse(threadID string) error {
 				continue
 			}
 
-			runtime.EventsEmit(a.ctx, "agent:message", map[string]string{
-				"type":    msgType,
-				"content": content,
-			})
+			notify.EmitAgentMessage(a.ctx, msgType, content)
 		}
 	}()
 
@@ -261,10 +237,7 @@ func (a *App) generateAndUpdateThreadTitle(ctx context.Context, threadID string)
 		return fmt.Errorf("failed to update thread title: %w", err)
 	}
 
-	runtime.EventsEmit(a.ctx, "thread:title_updated", map[string]string{
-		"thread_id": threadID,
-		"title":     formattedTitle,
-	})
+	notify.EmitThreadTitleUpdated(a.ctx, threadID, formattedTitle)
 
 	return nil
 }

@@ -292,6 +292,7 @@ function handleError(errorMessage) {
 
 window.runtime.EventsOn('agent:message', handleAgentMessage);
 window.runtime.EventsOn('agent:messages_truncated', handleMessagesTruncated);
+window.runtime.EventsOn('feed:item_pushed', handleFeedItemPushed);
 
 function addUserMessage(text, scrollToBottom = true) {
     const messageGroup = document.createElement('div');
@@ -1029,6 +1030,35 @@ let feedArticlesLoading = false;
 let feedTopicsError = '';
 let feedArticlesError = '';
 let feedArticlesRequestToken = 0;
+
+function handleFeedItemPushed(item) {
+    const topic = item?.topic;
+    if (!topic) return;
+
+    if (!feedTopicsCache.includes(topic)) {
+        feedTopicsCache = [...feedTopicsCache, topic];
+    }
+    if (!currentFeedTopicId) {
+        currentFeedTopicId = topic;
+    }
+    renderFeedTopics();
+
+    if (topic !== currentFeedTopicId) return;
+
+    let updated = false;
+    if (item?.id) {
+        const existingIndex = feedArticlesCache.findIndex(article => article?.id === item.id);
+        if (existingIndex !== -1) {
+            feedArticlesCache[existingIndex] = item;
+            updated = true;
+        }
+    }
+    if (!updated) {
+        feedArticlesCache = [item, ...feedArticlesCache];
+    }
+    feedArticlesCache.sort((a, b) => (b?.created_at || 0) - (a?.created_at || 0));
+    renderFeedArticles();
+}
 
 function renderFeedTopics() {
     if (!feedTopicsList) return;

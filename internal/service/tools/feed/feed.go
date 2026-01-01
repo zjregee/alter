@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/zjregee/alter/internal/models"
+	"github.com/zjregee/alter/internal/notify"
 	feedService "github.com/zjregee/alter/internal/service/feed"
 )
 
@@ -34,6 +35,8 @@ func PushFeed(ctx context.Context, params *PushFeedParams) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	notify.EmitFeedItemPushed(ctx, stored)
 
 	return formatPushResult(stored), nil
 }

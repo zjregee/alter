@@ -249,7 +249,10 @@ func (a *App) ListModels() []*models.ModelInfo {
 
 	models := a.agentService.ListModels()
 	sort.SliceStable(models, func(i, j int) bool {
-		return models[i].Provider < models[j].Provider
+		if models[i].Provider != models[j].Provider {
+			return models[i].Provider < models[j].Provider
+		}
+		return models[i].Name < models[j].Name
 	})
 
 	return models

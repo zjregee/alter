@@ -6,8 +6,10 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
+	"github.com/zjregee/alter/internal/service/tools/agents"
 	"github.com/zjregee/alter/internal/service/tools/bash"
 	"github.com/zjregee/alter/internal/service/tools/feed"
+	"github.com/zjregee/alter/internal/service/tools/skills"
 )
 
 var registeredTools = make(map[string]func(context.Context) (*schema.ToolInfo, tool.InvokableTool, error))
@@ -42,4 +44,7 @@ func GetAllRegisteredTools(ctx context.Context) ([]*schema.ToolInfo, map[string]
 func init() {
 	registerTool(bash.BashToolName, bash.GetBashTool)
 	registerTool(feed.PushFeedToolName, feed.GetPushFeedTool)
+	registerTool(skills.ListSkillsToolName, skills.ListSkillsTool)
+	registerTool(skills.LoadSkillToolName, skills.LoadSkillTool)
+	registerTool(agents.AgentsToolName, agents.GetAgentsTool)
 }

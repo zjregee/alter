@@ -1,4 +1,4 @@
 #!/bin/bash
 
-source .env
+rm ~/.alter/alter.db
 wails dev

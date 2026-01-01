@@ -4,68 +4,38 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
-	"github.com/cloudwego/eino-ext/components/model/ark"
 	"github.com/cloudwego/eino-ext/components/model/deepseek"
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/components/model"
+	"github.com/pelletier/go-toml/v2"
 
 	"github.com/zjregee/alter/internal/models"
 )
 
 const (
-	DeepSeekChatModelID        = "deepseek-chat"
-	DeepSeekReasonerModelID    = "deepseek-reasoner"
-	DoubaoSeed18251215ModelID  = "doubao-seed-1-8-251215"
-	KimiK2TurboModelID         = "kimi-k2-turbo-preview"
-	KimiK2ThinkingTurboModelID = "kimi-k2-thinking-turbo"
-	XGrok41FastModelID         = "x-ai/grok-4.1-fast"
-	Qwen3CoderModelID          = "qwen/qwen3-coder:free"
-	XiaoMiMimoV2FlashModelID   = "xiaomi/mimo-v2-flash:free"
+	defaultDir        = ".alter"
+	defaultConfigFile = "config.toml"
 )
 
-const defaultModelID = DeepSeekChatModelID
+var defaultModelID string
 
 const (
 	DeepSeekModelProvider   = "DeepSeek"
-	ByteDanceModelProvider  = "ByteDance"
 	MoonshotModelProvider   = "Moonshot"
 	OpenRouterModelProvider = "OpenRouter"
 )
 
 const (
-	DeepSeekModelBaseURL   = "https://api.deepseek.com"
-	ByteDanceModelBaseURL  = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
-	MoonshotModelBaseURL   = "https://api.moonshot.cn"
-	OpenRouterModelBaseURL = "https://openrouter.ai/api/v1"
+	defaultDeepSeekModelBaseURL   = "https://api.deepseek.com"
+	defaultMoonshotModelBaseURL   = "https://api.moonshot.cn/v1"
+	defaultOpenRouterModelBaseURL = "https://openrouter.ai/api/v1"
 )
 
 var (
-	DeepSeekModelAPIKey   string
-	ByteDanceModelAPIKey  string
-	MoonshotModelAPIKey   string
-	OpenRouterModelAPIKey string
+	availableModels map[string]*ModelConfig
 )
-
-func init() {
-	DeepSeekModelAPIKey = os.Getenv("DEEPSEEK_API_KEY")
-	ByteDanceModelAPIKey = os.Getenv("BYTE_DANCE_API_KEY")
-	MoonshotModelAPIKey = os.Getenv("MOONSHOT_API_KEY")
-	OpenRouterModelAPIKey = os.Getenv("OPENROUTER_API_KEY")
-
-	if DeepSeekModelAPIKey == "" {
-		panic("DEEPSEEK_API_KEY is not set")
-	}
-	if ByteDanceModelAPIKey == "" {
-		panic("BYTE_DANCE_API_KEY is not set")
-	}
-	if MoonshotModelAPIKey == "" {
-		panic("MOONSHOT_API_KEY is not set")
-	}
-	if OpenRouterModelAPIKey == "" {
-		panic("OPENROUTER_API_KEY is not set")
-	}
-}
 
 type ModelConfig struct {
 	Info    *models.ModelInfo
@@ -73,87 +43,132 @@ type ModelConfig struct {
 	BaseURL string
 }
 
-var availableModels = map[string]*ModelConfig{
-	DeepSeekChatModelID: {
-		Info: &models.ModelInfo{
-			ID:            DeepSeekChatModelID,
-			Name:          "deepseek-chat",
-			Provider:      DeepSeekModelProvider,
-			ContextWindow: "128k",
-		},
-		APIKey:  DeepSeekModelAPIKey,
-		BaseURL: DeepSeekModelBaseURL,
-	},
-	DeepSeekReasonerModelID: {
-		Info: &models.ModelInfo{
-			ID:            DeepSeekReasonerModelID,
-			Name:          "deepseek-reasoner",
-			Provider:      DeepSeekModelProvider,
-			ContextWindow: "128k",
-		},
-		APIKey:  DeepSeekModelAPIKey,
-		BaseURL: DeepSeekModelBaseURL,
-	},
-	DoubaoSeed18251215ModelID: {
-		Info: &models.ModelInfo{
-			ID:            DoubaoSeed18251215ModelID,
-			Name:          "doubao-seed-1.8",
-			Provider:      ByteDanceModelProvider,
-			ContextWindow: "256k",
-		},
-		APIKey:  ByteDanceModelAPIKey,
-		BaseURL: ByteDanceModelBaseURL,
-	},
-	KimiK2TurboModelID: {
-		Info: &models.ModelInfo{
-			ID:            KimiK2TurboModelID,
-			Name:          "kimi-k2",
-			Provider:      MoonshotModelProvider,
-			ContextWindow: "256k",
-		},
-		APIKey:  MoonshotModelAPIKey,
-		BaseURL: MoonshotModelBaseURL,
-	},
-	KimiK2ThinkingTurboModelID: {
-		Info: &models.ModelInfo{
-			ID:            KimiK2ThinkingTurboModelID,
-			Name:          "kimi-k2-thinking",
-			Provider:      MoonshotModelProvider,
-			ContextWindow: "256k",
-		},
-		APIKey:  MoonshotModelAPIKey,
-		BaseURL: MoonshotModelBaseURL,
-	},
-	XGrok41FastModelID: {
-		Info: &models.ModelInfo{
-			ID:            XGrok41FastModelID,
-			Name:          "grok-4.1-fast",
-			Provider:      OpenRouterModelProvider,
-			ContextWindow: "2M",
-		},
-		APIKey:  OpenRouterModelAPIKey,
-		BaseURL: OpenRouterModelBaseURL,
-	},
-	Qwen3CoderModelID: {
-		Info: &models.ModelInfo{
-			ID:            Qwen3CoderModelID,
-			Name:          "qwen3-coder",
-			Provider:      OpenRouterModelProvider,
-			ContextWindow: "262k",
-		},
-		APIKey:  OpenRouterModelAPIKey,
-		BaseURL: OpenRouterModelBaseURL,
-	},
-	XiaoMiMimoV2FlashModelID: {
-		Info: &models.ModelInfo{
-			ID:            XiaoMiMimoV2FlashModelID,
-			Name:          "mimo-v2-flash",
-			Provider:      OpenRouterModelProvider,
-			ContextWindow: "262k",
-		},
-		APIKey:  OpenRouterModelAPIKey,
-		BaseURL: OpenRouterModelBaseURL,
-	},
+type fileConfig struct {
+	Model modelFileConfig `toml:"model"`
+}
+
+type modelFileConfig struct {
+	Default   string                         `toml:"default"`
+	Providers map[string]modelProviderConfig `toml:"providers"`
+}
+
+type modelProviderConfig struct {
+	APIKey  string             `toml:"api_key"`
+	BaseURL string             `toml:"base_url"`
+	Models  []modelEntryConfig `toml:"models"`
+}
+
+type modelEntryConfig struct {
+	ID            string `toml:"id"`
+	Name          string `toml:"name"`
+	ContextWindow string `toml:"context_window"`
+}
+
+func init() {
+	cfg, err := loadModelConfig()
+	if err != nil {
+		panic(err)
+	}
+
+	availableModels, err = buildAvailableModels(cfg)
+	if err != nil {
+		panic(err)
+	}
+
+	if cfg.Default == "" {
+		panic(fmt.Sprintf("model default is empty in %s", defaultConfigFile))
+	}
+	if _, ok := availableModels[cfg.Default]; !ok {
+		panic(fmt.Sprintf("default model not found: %s", cfg.Default))
+	}
+	defaultModelID = cfg.Default
+}
+
+func loadModelConfig() (*modelFileConfig, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	alterDir := filepath.Join(homeDir, defaultDir)
+	if err := os.MkdirAll(alterDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create .alter directory: %w", err)
+	}
+
+	configPath := filepath.Join(alterDir, defaultConfigFile)
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("read model config %s: %w", configPath, err)
+	}
+
+	var cfg fileConfig
+	if err := toml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parse model config %s: %w", configPath, err)
+	}
+
+	return &cfg.Model, nil
+}
+
+func buildAvailableModels(cfg *modelFileConfig) (map[string]*ModelConfig, error) {
+	if cfg == nil || len(cfg.Providers) == 0 {
+		return nil, fmt.Errorf("model providers are missing in %s", defaultConfigFile)
+	}
+
+	providerNames := map[string]string{
+		"deepseek":   DeepSeekModelProvider,
+		"moonshot":   MoonshotModelProvider,
+		"openrouter": OpenRouterModelProvider,
+	}
+	providerDefaults := map[string]string{
+		"deepseek":   defaultDeepSeekModelBaseURL,
+		"moonshot":   defaultMoonshotModelBaseURL,
+		"openrouter": defaultOpenRouterModelBaseURL,
+	}
+
+	modelsByID := make(map[string]*ModelConfig)
+	for key, provider := range cfg.Providers {
+		providerName, ok := providerNames[key]
+		if !ok {
+			return nil, fmt.Errorf("model provider %s is not supported", key)
+		}
+		if provider.APIKey == "" {
+			return nil, fmt.Errorf("model provider %s api_key is empty in %s", key, defaultConfigFile)
+		}
+		if provider.BaseURL == "" {
+			provider.BaseURL = providerDefaults[key]
+		}
+		if provider.BaseURL == "" {
+			return nil, fmt.Errorf("model provider %s base_url is empty in %s", key, defaultConfigFile)
+		}
+		if len(provider.Models) == 0 {
+			return nil, fmt.Errorf("model provider %s models are empty in %s", key, defaultConfigFile)
+		}
+
+		for _, entry := range provider.Models {
+			if entry.ID == "" {
+				return nil, fmt.Errorf("model provider %s has a model with empty id in %s", key, defaultConfigFile)
+			}
+			if entry.Name == "" {
+				return nil, fmt.Errorf("model provider %s has a model with empty name: %s", key, entry.ID)
+			}
+			if _, exists := modelsByID[entry.ID]; exists {
+				return nil, fmt.Errorf("model id %s is duplicated in %s", entry.ID, defaultConfigFile)
+			}
+
+			modelsByID[entry.ID] = &ModelConfig{
+				Info: &models.ModelInfo{
+					ID:            entry.ID,
+					Name:          entry.Name,
+					Provider:      providerName,
+					ContextWindow: entry.ContextWindow,
+				},
+				APIKey:  provider.APIKey,
+				BaseURL: provider.BaseURL,
+			}
+		}
+	}
+
+	return modelsByID, nil
 }
 
 func getDefaultModelInfo() *models.ModelInfo {
@@ -187,12 +202,6 @@ func getModel(ctx context.Context, modelID string) (model.ToolCallingChatModel, 
 	switch config.Info.Provider {
 	case DeepSeekModelProvider:
 		return deepseek.NewChatModel(ctx, &deepseek.ChatModelConfig{
-			APIKey:  config.APIKey,
-			BaseURL: config.BaseURL,
-			Model:   modelID,
-		})
-	case ByteDanceModelProvider:
-		return ark.NewChatModel(ctx, &ark.ChatModelConfig{
 			APIKey:  config.APIKey,
 			BaseURL: config.BaseURL,
 			Model:   modelID,

@@ -154,7 +154,24 @@ function showThinkingStatus() {
 
     currentThinkingBlock = document.createElement('div');
     currentThinkingBlock.className = 'thinking-status';
-    currentThinkingBlock.innerHTML = '<span class="thinking-animation">Thinking</span><span class="thinking-timer">0.0s</span>';
+    currentThinkingBlock.innerHTML = `
+        <span class="tool-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m12 3-1.9 4.8-4.8 1.9 4.8 1.9 1.9 4.8 1.9-4.8 4.8-1.9-4.8-1.9L12 3z"/>
+                <path d="M5 3v4"/>
+                <path d="M19 17v4"/>
+                <path d="M3 5h4"/>
+                <path d="M17 19h4"/>
+            </svg>
+        </span>
+        <span class="thinking-text-label">Thinking</span>
+        <span class="thinking-dots">
+            <span class="dot">.</span>
+            <span class="dot">.</span>
+            <span class="dot">.</span>
+        </span>
+        <span class="thinking-timer">0.0s</span>
+    `;
     currentThinkingBlock.style.display = 'flex';
     
     currentTurnContainer.querySelector('.message-content').appendChild(currentThinkingBlock);
@@ -190,9 +207,11 @@ function appendThoughtBlock(text, durationInSeconds) {
         <div class="thought-header">
             <span class="tool-icon">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M8.5 6.5a3.5 3.5 0 0 1 6.9 1.2 3 3 0 0 1 1.6 5.4 3 3 0 0 1-1.8 5.6H9.5a3.5 3.5 0 0 1-1.2-6.8 3.5 3.5 0 0 1 .2-5.4z"/>
-                    <path d="M9 9.5c1 0 1.5.8 1.5 1.5v6"/>
-                    <path d="M13.5 9.5c-1 0-1.5.8-1.5 1.5v6"/>
+                    <path d="m12 3-1.9 4.8-4.8 1.9 4.8 1.9 1.9 4.8 1.9-4.8 4.8-1.9-4.8-1.9L12 3z"/>
+                    <path d="M5 3v4"/>
+                    <path d="M19 17v4"/>
+                    <path d="M3 5h4"/>
+                    <path d="M17 19h4"/>
                 </svg>
             </span>
             <span>Thought${durationText}</span>
@@ -1021,6 +1040,11 @@ function getDefaultWorkspacePath() {
 // --- Feed View ---
 const feedTopicsList = document.querySelector('.feed-topics-list');
 const feedArticlesList = document.querySelector('.feed-articles-list');
+const feedDetailView = document.querySelector('#feed-detail-view');
+const feedBackBtn = document.querySelector('#feed-back-btn');
+const feedDetailTitle = document.querySelector('#feed-detail-title');
+const feedDetailTimestamp = document.querySelector('#feed-detail-timestamp');
+const feedDetailContent = document.querySelector('#feed-detail-content');
 
 let feedTopicsCache = [];
 let feedArticlesCache = [];
@@ -1031,10 +1055,15 @@ let feedTopicsError = '';
 let feedArticlesError = '';
 let feedArticlesRequestToken = 0;
 
+if (feedBackBtn) {
+    feedBackBtn.addEventListener('click', () => {
+        if (feedDetailView) feedDetailView.style.display = 'none';
+        if (feedArticlesList) feedArticlesList.style.display = 'block';
+    });
+}
 function handleFeedItemPushed(item) {
     const topic = item?.topic;
     if (!topic) return;
-
     if (!feedTopicsCache.includes(topic)) {
         feedTopicsCache = [...feedTopicsCache, topic];
     }
@@ -1042,9 +1071,7 @@ function handleFeedItemPushed(item) {
         currentFeedTopicId = topic;
     }
     renderFeedTopics();
-
     if (topic !== currentFeedTopicId) return;
-
     let updated = false;
     if (item?.id) {
         const existingIndex = feedArticlesCache.findIndex(article => article?.id === item.id);
@@ -1059,7 +1086,6 @@ function handleFeedItemPushed(item) {
     feedArticlesCache.sort((a, b) => (b?.created_at || 0) - (a?.created_at || 0));
     renderFeedArticles();
 }
-
 function renderFeedTopics() {
     if (!feedTopicsList) return;
     feedTopicsList.innerHTML = '';
@@ -1075,17 +1101,25 @@ function renderFeedTopics() {
         feedTopicsList.innerHTML = '<div class="feed-empty">暂无主题</div>';
         return;
     }
-
     feedTopicsCache.forEach(topic => {
         const topicEl = document.createElement('div');
         topicEl.className = 'feed-topic-item';
-        topicEl.textContent = topic;
+        topicEl.innerHTML = `<div class="thread-text"></div>`;
+        topicEl.querySelector('.thread-text').textContent = topic;
         topicEl.dataset.topicId = topic;
         if (topic === currentFeedTopicId) {
             topicEl.classList.add('active');
         }
         topicEl.addEventListener('click', async () => {
-            if (topic === currentFeedTopicId) return;
+            // Return to the list view if the detail view is open
+            if (feedDetailView) feedDetailView.style.display = 'none';
+            if (feedArticlesList) feedArticlesList.style.display = 'block';
+
+            if (topic === currentFeedTopicId) {
+                // Same topic, no need to reload
+                return;
+            }
+
             currentFeedTopicId = topic;
             renderFeedTopics();
             await loadFeedArticles(topic);
@@ -1093,7 +1127,6 @@ function renderFeedTopics() {
         feedTopicsList.appendChild(topicEl);
     });
 }
-
 function renderFeedArticles() {
     if (!feedArticlesList) return;
     if (feedArticlesLoading) {
@@ -1112,22 +1145,19 @@ function renderFeedArticles() {
         feedArticlesList.innerHTML = '<div class="feed-empty">暂无内容</div>';
         return;
     }
-
     feedArticlesList.innerHTML = '';
     feedArticlesCache.forEach(article => {
         const articleEl = document.createElement('div');
         articleEl.className = 'feed-article-item';
+        
         const headerEl = document.createElement('div');
         headerEl.className = 'feed-article-header';
-
         const titleEl = document.createElement('h2');
         titleEl.className = 'feed-article-title';
         titleEl.textContent = article?.title || '未命名';
-
         const timestampEl = document.createElement('span');
         timestampEl.className = 'feed-article-timestamp';
         timestampEl.textContent = formatFeedTimestamp(article?.created_at);
-
         const contentEl = document.createElement('p');
         contentEl.className = 'feed-article-content';
         contentEl.textContent = article?.content || '';
@@ -1136,6 +1166,14 @@ function renderFeedArticles() {
         headerEl.appendChild(timestampEl);
         articleEl.appendChild(headerEl);
         articleEl.appendChild(contentEl);
+
+        articleEl.addEventListener('click', () => {
+            if (feedDetailTitle) feedDetailTitle.textContent = article?.title || '未命名';
+            if (feedDetailTimestamp) feedDetailTimestamp.textContent = formatFeedTimestamp(article?.created_at);
+            if (feedDetailContent) feedDetailContent.textContent = article?.content || '';
+            if (feedArticlesList) feedArticlesList.style.display = 'none';
+            if (feedDetailView) feedDetailView.style.display = 'flex';
+        });
         feedArticlesList.appendChild(articleEl);
     });
 }

@@ -2,10 +2,12 @@ package tools
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
+	"github.com/zjregee/alter/internal/service/mcp"
 	"github.com/zjregee/alter/internal/service/tools/agents"
 	"github.com/zjregee/alter/internal/service/tools/bash"
 	"github.com/zjregee/alter/internal/service/tools/duckduckgo"
@@ -39,7 +41,42 @@ func GetAllRegisteredTools(ctx context.Context) ([]*schema.ToolInfo, map[string]
 		}
 	}
 
+	if err := addMCPTools(ctx, &allToolInfos, allToolsMap); err != nil {
+		return nil, nil, err
+	}
+
 	return allToolInfos, allToolsMap, nil
+}
+
+func addMCPTools(ctx context.Context, allToolInfos *[]*schema.ToolInfo, allToolsMap map[string]tool.InvokableTool) error {
+	tools, err := mcp.GetMCPTools(ctx)
+	if err != nil {
+		return err
+	}
+	if len(tools) == 0 {
+		return nil
+	}
+
+	for _, t := range tools {
+		invokableTool, ok := t.(tool.InvokableTool)
+		if !ok {
+			continue
+		}
+
+		info, err := t.Info(ctx)
+		if err != nil {
+			return err
+		}
+
+		if _, exists := allToolsMap[info.Name]; exists {
+			return fmt.Errorf("duplicate tool name: %s", info.Name)
+		}
+
+		*allToolInfos = append(*allToolInfos, info)
+		allToolsMap[info.Name] = invokableTool
+	}
+
+	return nil
 }
 
 func init() {

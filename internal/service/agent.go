@@ -305,21 +305,21 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 			a.stats.Usage.TotalTokens = a.stats.Usage.PromptTokens + a.stats.Usage.CompletionTokens
 		}
 
+		if response.Content == "" && len(response.ToolCalls) == 0 {
+			sendAndCollect(models.AgentError{Error: "agent returned an empty response"})
+			return
+		}
+
 		if response.Content != "" {
 			durationSeconds := time.Since(thinkingStartedAt).Seconds()
 			sendAndCollect(models.AgentThought{
 				Content:         response.Content,
 				DurationSeconds: durationSeconds,
 			})
-			a.history = append(a.history, response)
 		}
+		a.history = append(a.history, response)
 
 		if len(response.ToolCalls) == 0 {
-			if response.Content == "" {
-				sendAndCollect(models.AgentError{Error: "agent returned an empty response"})
-				return
-			}
-
 			sendAndCollect(models.AgentFinalResponse{})
 			return
 		}

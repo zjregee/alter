@@ -6,6 +6,7 @@ require (
 	github.com/cloudwego/eino v0.7.17
 	github.com/cloudwego/eino-ext/components/model/deepseek v0.1.1
 	github.com/cloudwego/eino-ext/components/model/openai v0.1.6
+	github.com/cloudwego/eino-ext/components/tool/duckduckgo/v2 v2.0.0-20251114071555-14756a18ad37
 	github.com/google/uuid v1.6.0
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/tidwall/gjson v1.18.0
@@ -15,6 +16,8 @@ require (
 )
 
 require (
+	github.com/PuerkitoBio/goquery v1.10.3 // indirect
+	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
@@ -24,6 +27,7 @@ require (
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/cloudwego/eino-ext/libs/acl/openai v0.1.10 // indirect
 	github.com/cohesion-org/deepseek-go v1.3.2 // indirect
+	github.com/corpix/uarand v0.2.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/eino-contrib/jsonschema v1.0.3 // indirect
 	github.com/evanphx/json-patch v0.5.2 // indirect

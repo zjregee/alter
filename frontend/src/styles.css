@@ -304,6 +304,7 @@ select {
     flex-direction: column;
     background-color: var(--app-bg);
     min-height: 0;
+    min-width: 0;
 }
 
 .view-content {
@@ -315,6 +316,7 @@ select {
     display: flex;
     flex: 1;
     min-height: 0;
+    min-width: 0;
 }
 
 .sidebar-content > .view-content {
@@ -331,6 +333,7 @@ select {
 .chat-messages {
     flex: 1;
     overflow-y: scroll;
+    overflow-x: hidden;
     padding: 24px;
     scrollbar-gutter: stable;
 }
@@ -360,6 +363,8 @@ select {
     margin-right: auto;
     padding: 0;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .message-avatar {
@@ -463,6 +468,7 @@ select {
     margin: 4px 0;
     overflow: hidden;
     width: 100%;
+    max-width: 100%;
 }
 
 
@@ -594,11 +600,13 @@ select {
     padding: 8px 10px;
     font-size: 11px;
     color: var(--text-primary);
+    max-width: 100%;
 }
 
 .tool-call-content pre {
     white-space: pre-wrap;
     word-wrap: break-word;
+    overflow-wrap: anywhere;
 }
 
 .tool-call-footer {
@@ -1088,6 +1096,9 @@ select {
 
 .message-content .tool-call + .thought-block {
     margin-top: 2px;
+}
+.message-content .tool-call + .tool-call {
+    margin-top: 10px;
 }
 
 /* --- Feed View Styles --- */

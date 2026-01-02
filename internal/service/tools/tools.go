@@ -8,6 +8,7 @@ import (
 
 	"github.com/zjregee/alter/internal/service/tools/agents"
 	"github.com/zjregee/alter/internal/service/tools/bash"
+	"github.com/zjregee/alter/internal/service/tools/duckduckgo"
 	"github.com/zjregee/alter/internal/service/tools/feed"
 	"github.com/zjregee/alter/internal/service/tools/skills"
 )
@@ -43,6 +44,7 @@ func GetAllRegisteredTools(ctx context.Context) ([]*schema.ToolInfo, map[string]
 
 func init() {
 	registerTool(bash.BashToolName, bash.GetBashTool)
+	registerTool(duckduckgo.DuckDuckGoToolName, duckduckgo.GetDuckDuckGoTool)
 	registerTool(feed.PushFeedToolName, feed.GetPushFeedTool)
 	registerTool(skills.ListSkillsToolName, skills.ListSkillsTool)
 	registerTool(skills.LoadSkillToolName, skills.LoadSkillTool)

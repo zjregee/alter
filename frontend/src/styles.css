@@ -654,6 +654,33 @@ select {
     justify-content: flex-end;
 }
 
+.send-cancel-stack {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+}
+
+.send-cancel-stack .send-btn {
+    transition: opacity 0.15s ease;
+}
+
+.send-cancel-stack.cancel-visible .send-btn {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.send-cancel-stack .send-btn,
+.send-cancel-stack .cancel-btn {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.send-cancel-stack .cancel-btn {
+    z-index: 2;
+}
+
 .workspace-switcher {
     position: relative;
     margin-right: auto;
@@ -1020,6 +1047,39 @@ select {
 
 .send-btn:hover {
     background-color: var(--accent-strong);
+}
+
+.cancel-btn {
+    background-color: var(--error-bg);
+    border: 1px solid rgba(214, 107, 107, 0.7);
+    color: var(--error-text);
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cancel-btn[hidden] {
+    display: none;
+}
+
+.cancel-btn svg {
+    width: 10px;
+    height: 10px;
+}
+
+.cancel-btn:hover {
+    background-color: rgba(214, 107, 107, 0.25);
+}
+
+.cancel-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 /* Scrollbar styles */

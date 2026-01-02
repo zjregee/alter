@@ -8,6 +8,8 @@ chatInput.addEventListener('input', function() {
 
 // DOM 元素
 const sendBtn = document.querySelector('.send-btn');
+const cancelBtn = document.querySelector('.cancel-btn');
+const sendCancelStack = document.querySelector('.send-cancel-stack');
 const threadList = document.querySelector('.thread-list');
 const chatMessages = document.querySelector('.chat-messages');
 const searchInput = document.querySelector('.thread-search');
@@ -51,6 +53,43 @@ let lastThoughtText = '';
 let lastThoughtElement = null;
 let lastThinkingDuration = null;
 let lastAssistantTurnIndex = -1;
+let cancelHandled = false;
+let cancelVisible = false;
+
+function setProcessingState(nextState) {
+    isProcessing = nextState;
+    chatInput.disabled = nextState;
+    sendBtn.disabled = nextState;
+    setCancelVisibility(nextState);
+    if (nextState) {
+        cancelHandled = false;
+    }
+    updateWorkspaceToggleState();
+    updateModelToggleState();
+}
+
+function setCancelVisibility(visible) {
+    if (!cancelBtn) return;
+    cancelVisible = visible;
+    if (sendCancelStack) {
+        sendCancelStack.classList.toggle('cancel-visible', visible);
+    }
+    cancelBtn.hidden = !visible;
+    cancelBtn.disabled = !visible;
+    cancelBtn.classList.remove('is-canceling');
+}
+
+function markCanceling() {
+    if (!cancelBtn) return;
+    cancelBtn.disabled = true;
+    cancelBtn.classList.add('is-canceling');
+}
+
+function resetCancelButton() {
+    if (!cancelBtn) return;
+    cancelBtn.disabled = false;
+    cancelBtn.classList.remove('is-canceling');
+}
 
 // 页面加载时初始化
 window.addEventListener('DOMContentLoaded', async () => {
@@ -109,11 +148,7 @@ sendBtn.addEventListener('click', async () => {
         chatInput.value = '';
         chatInput.style.height = 'auto';
         
-        isProcessing = true;
-        chatInput.disabled = true;
-        sendBtn.disabled = true;
-        updateWorkspaceToggleState();
-        updateModelToggleState();
+        setProcessingState(true);
         lastThoughtText = '';
         lastThoughtElement = null;
         lastThinkingDuration = null;
@@ -126,6 +161,21 @@ sendBtn.addEventListener('click', async () => {
             console.error('Agent chat error:', error);
             handleError('抱歉，发生了错误: ' + error);
         }
+    }
+});
+
+cancelBtn?.addEventListener('click', async () => {
+    if (!currentThreadID || !isProcessing) return;
+    markCanceling();
+    try {
+        await window.go.app.App.CancelStreamRequestToThread(currentThreadID);
+        if (!cancelHandled) {
+            handleCancel();
+        }
+    } catch (error) {
+        console.error('Cancel agent request error:', error);
+        resetCancelButton();
+        appendStatusMessage(currentTurnContainer, '取消失败: ' + error, 'var(--error-text)');
     }
 });
 
@@ -239,7 +289,12 @@ function appendThoughtBlock(text, durationInSeconds) {
 
 // 处理来自 Go 后端的 agent 消息
 function handleAgentMessage(data) {
+    if (cancelHandled) return;
     const { type, content } = data;
+
+    if (isProcessing && !cancelVisible) {
+        setCancelVisibility(true);
+    }
     
     switch (type) {
         case 'start_thinking':
@@ -262,9 +317,23 @@ function handleAgentMessage(data) {
             handleFinalResponse();
             break;
         case 'error':
-            handleError(getEventText(content));
+            const errorText = getEventText(content);
+            if (isCancelMessage(errorText)) {
+                handleCancel();
+            } else {
+                handleError(errorText);
+            }
             break;
     }
+}
+
+function isCancelMessage(message) {
+    if (typeof message !== 'string') return false;
+    return (
+        message.includes('agent generation cancelled') ||
+        message.includes('context canceled') ||
+        message.includes('context cancelled')
+    );
 }
 
 function handleFinalResponse() {
@@ -272,11 +341,7 @@ function handleFinalResponse() {
     if (currentTurnContainer) {
         appendTurnActions(currentTurnContainer, true);
     }
-    isProcessing = false;
-    chatInput.disabled = false;
-    sendBtn.disabled = false;
-    updateWorkspaceToggleState();
-    updateModelToggleState();
+    setProcessingState(false);
     chatInput.focus();
     currentTurnContainer = null;
     currentToolCallElements.clear();
@@ -286,21 +351,31 @@ function handleFinalResponse() {
     loadThreads(false); // 刷新线程列表，但不重新加载消息
 }
 
+function handleCancel() {
+    cancelHandled = true;
+    hideThinkingStatus();
+    if (!currentTurnContainer) {
+        createTurnContainer();
+    }
+    appendStatusMessage(currentTurnContainer, 'Cancelled', 'var(--text-tertiary)');
+
+    setProcessingState(false);
+    chatInput.focus();
+    currentTurnContainer = null;
+    currentToolCallElements.clear();
+    lastThoughtText = '';
+    lastThoughtElement = null;
+    lastThinkingDuration = null;
+}
+
 function handleError(errorMessage) {
     hideThinkingStatus();
     if (!currentTurnContainer) {
         createTurnContainer();
     }
-    const p = document.createElement('p');
-    p.style.color = 'var(--error-text)';
-    p.textContent = '错误: ' + errorMessage;
-    currentTurnContainer.querySelector('.message-content').appendChild(p);
+    appendStatusMessage(currentTurnContainer, '错误: ' + errorMessage, 'var(--error-text)');
     
-    isProcessing = false;
-    chatInput.disabled = false;
-    sendBtn.disabled = false;
-    updateWorkspaceToggleState();
-    updateModelToggleState();
+    setProcessingState(false);
     chatInput.focus();
     currentTurnContainer = null;
     currentToolCallElements.clear();
@@ -399,10 +474,12 @@ async function loadThreadMessages(threadID) {
                             break;
                         }
                         case 'error':
-                             const p = document.createElement('p');
-                             p.style.color = 'var(--error-text)';
-                             p.textContent = '错误: ' + getEventText(event.content);
-                             currentTurnContainer.querySelector('.message-content').appendChild(p);
+                             const historyErrorText = getEventText(event.content);
+                             if (isCancelMessage(historyErrorText)) {
+                                 appendStatusMessage(currentTurnContainer, 'Cancelled', 'var(--text-tertiary)');
+                             } else {
+                                 appendStatusMessage(currentTurnContainer, '错误: ' + historyErrorText, 'var(--error-text)');
+                             }
                             break;
                     }
                 }
@@ -422,6 +499,19 @@ async function loadThreadMessages(threadID) {
         currentTurnContainer = null;
         currentToolCallElements.clear();
     }
+}
+
+function appendStatusMessage(container, text, color) {
+    if (!container) return;
+    const content = container.querySelector('.message-content');
+    if (!content) return;
+    const status = document.createElement('div');
+    status.className = 'response-meta status-message';
+    status.style.color = color;
+    const span = document.createElement('span');
+    span.textContent = text;
+    status.appendChild(span);
+    content.appendChild(status);
 }
 
 function appendToolCall(payload) {
@@ -792,6 +882,7 @@ async function switchThread(threadID) {
     syncCurrentThreadModel();
     syncCurrentThreadWorkspace();
     await loadThreadMessages(threadID);
+    setProcessingState(false);
 }
 
 async function persistThreadOrder() {
@@ -809,6 +900,7 @@ async function createNewThread() {
     try {
         currentThreadID = await window.go.app.App.CreateThread();
         chatMessages.innerHTML = '';
+        setProcessingState(false);
         await loadThreads(false);
     } catch (error) {
         console.error('创建新线程失败:', error);
@@ -983,11 +1075,7 @@ async function handleCopyTurn(container) {
 
 async function handleRegenerateTurn() {
     if (!currentThreadID || isProcessing) return;
-    isProcessing = true;
-    chatInput.disabled = true;
-    sendBtn.disabled = true;
-    updateWorkspaceToggleState();
-    updateModelToggleState();
+    setProcessingState(true);
     lastThoughtText = '';
     lastThoughtElement = null;
     lastThinkingDuration = null;

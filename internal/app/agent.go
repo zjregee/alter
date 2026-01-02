@@ -74,6 +74,17 @@ func (a *App) AgentChat(threadID string, userInput string) error {
 	return nil
 }
 
+func (a *App) CancelStreamRequestToThread(threadID string) error {
+	if a.agentService == nil {
+		return fmt.Errorf("agent service not initialized")
+	}
+	if threadID == "" {
+		return fmt.Errorf("thread ID is required")
+	}
+
+	return a.agentService.CancelStreamRequestToThread(threadID)
+}
+
 func (a *App) EditAndResendMessage(threadID string, userInput string, messageIndex int) error {
 	if a.agentService == nil {
 		return fmt.Errorf("agent service not initialized")

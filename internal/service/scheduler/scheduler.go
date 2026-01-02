@@ -175,7 +175,7 @@ func (s *Scheduler) UpdateSchedule(scheduleID string, updates *models.Schedule) 
 			return err
 		}
 
-		updates.NextRunAt = &nextRun
+		updates.NextRunAt = timeToString(nextRun)
 		if err := storage.SaveSchedule(updates); err != nil {
 			return err
 		}

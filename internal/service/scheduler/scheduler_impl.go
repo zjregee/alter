@@ -56,7 +56,7 @@ func (s *Scheduler) processSchedules(now time.Time) {
 			continue
 		}
 
-		item.schedule.NextRunAt = &nextRun
+		item.schedule.NextRunAt = timeToString(nextRun)
 		item.nextRun = nextRun
 		s.mu.Lock()
 		heap.Push(s.queue, item)
@@ -94,7 +94,8 @@ func (s *Scheduler) executeSchedule(schedule *models.Schedule) {
 		s.activeMu.Unlock()
 	}()
 
-	run.StartedAt = time.Now()
+	startedAt := time.Now()
+	run.StartedAt = timeToString(startedAt)
 
 	err := s.executeScheduleWithRetry(schedule, run)
 	if err != nil {
@@ -105,8 +106,8 @@ func (s *Scheduler) executeSchedule(schedule *models.Schedule) {
 	}
 
 	now := time.Now()
-	run.EndedAt = &now
-	schedule.LastRunAt = &run.StartedAt
+	run.EndedAt = timeToString(now)
+	schedule.LastRunAt = run.StartedAt
 
 	if err := storage.SaveSchedule(schedule); err != nil {
 		utils.GetLogger().Printf("Failed to save schedule %s: %v", schedule.ID, err)
@@ -121,7 +122,7 @@ func (s *Scheduler) executeSchedule(schedule *models.Schedule) {
 
 func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *models.ScheduleRun) error {
 	maxRetries := schedule.MaxRetries
-	retryInterval := schedule.RetryInterval
+	retryInterval := time.Duration(schedule.RetryInterval)
 	backoff := schedule.RetryBackoff
 
 	var lastErr error
@@ -177,19 +178,32 @@ func (s *Scheduler) loadSchedules() error {
 			continue
 		}
 
-		if schedule.NextRunAt == nil {
-			nextRun, err := calculateNextRunFromNow(schedule)
+		var nextRun time.Time
+		if schedule.NextRunAt == "" {
+			var err error
+			nextRun, err = calculateNextRunFromNow(schedule)
 			if err != nil {
 				utils.GetLogger().Printf("Failed to calculate next run for schedule %s: %v", schedule.ID, err)
 				continue
 			}
 
-			schedule.NextRunAt = &nextRun
+			schedule.NextRunAt = timeToString(nextRun)
+			if err := storage.SaveSchedule(schedule); err != nil {
+				utils.GetLogger().Printf("Failed to save schedule %s: %v", schedule.ID, err)
+				continue
+			}
+		} else {
+			var err error
+			nextRun, err = stringToTime(schedule.NextRunAt)
+			if err != nil {
+				utils.GetLogger().Printf("Failed to parse next run time for schedule %s: %v", schedule.ID, err)
+				continue
+			}
 		}
 
 		heap.Push(s.queue, &scheduleQueueItem{
 			schedule: schedule,
-			nextRun:  *schedule.NextRunAt,
+			nextRun:  nextRun,
 		})
 	}
 

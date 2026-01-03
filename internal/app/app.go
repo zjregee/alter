@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/zjregee/alter/internal/service"
+	"github.com/zjregee/alter/internal/utils"
 )
 
 type App struct {
@@ -28,4 +30,13 @@ func (a *App) Startup(ctx context.Context) {
 
 	a.ctx = ctx
 	a.agentService = agentService
+}
+
+func (a *App) Shutdown(ctx context.Context) {
+	shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := service.ShutdownTelemetry(shutdownCtx); err != nil {
+		utils.GetLogger().Printf("Warning: Failed to shutdown telemetry: %v\n", err)
+	}
 }

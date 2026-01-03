@@ -212,7 +212,7 @@ func (s *Scheduler) loadSchedules() error {
 
 func pow(base float64, exp float64) float64 {
 	result := 1.0
-	for i := 0; i < int(exp); i++ {
+	for i := 0; i < int(exp); i += 1 {
 		result *= base
 	}
 

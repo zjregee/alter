@@ -12,6 +12,10 @@ import (
 
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zjregee/alter/internal/models"
 	"github.com/zjregee/alter/internal/service/tools"
@@ -77,6 +81,8 @@ func NewAgent(ctx context.Context, cfg models.AgentConfig) (*Agent, error) {
 		return nil, err
 	}
 
+	ensureTelemetry(ctx)
+
 	toolInfos, toolsMap, err := tools.GetAllRegisteredTools(ctx)
 	if err != nil {
 		return nil, err
@@ -106,6 +112,8 @@ func NewAgentWithMessages(ctx context.Context, id string, cfg models.AgentConfig
 	if err := applyDefaults(&cfg); err != nil {
 		return nil, err
 	}
+
+	ensureTelemetry(ctx)
 
 	toolInfos, toolsMap, err := tools.GetAllRegisteredTools(ctx)
 	if err != nil {
@@ -225,6 +233,31 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 		return
 	}
 
+	var runSpan trace.Span
+	var runStartTime time.Time
+	if isTelemetryEnabled() {
+		runStartTime = time.Now()
+		tracer := otel.Tracer("alter/agent")
+		var newCtx context.Context
+		newCtx, runSpan = tracer.Start(ctx, "agent.run",
+			trace.WithAttributes(
+				attribute.String("agent.id", a.id),
+				attribute.String("agent.model_id", a.config.ModelID),
+				attribute.String("agent.work_dir", a.config.WorkDir),
+				attribute.Int("agent.max_iterations", a.config.MaxIterations),
+				attribute.Int("agent.available_tools", len(a.tools)),
+				attribute.Int("agent.history_size", len(a.history)),
+				attribute.Int("agent.turns_count", len(a.turns)),
+			),
+		)
+		ctx = newCtx
+		runSpan.AddEvent("agent.user_input", trace.WithAttributes(
+			attribute.String("content", userInput),
+			attribute.Int("input_length", len(userInput)),
+		))
+		defer runSpan.End()
+	}
+
 	userMsg := models.UserMessage{
 		Content: userInput,
 	}
@@ -274,10 +307,26 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 	}()
 
 	iterations := 0
+	totalThinkingTime := 0.0
+	totalToolExecutionTime := 0.0
+	totalToolCalls := 0
+	successfulToolCalls := 0
+	failedToolCalls := 0
+
 	for iterations < a.config.MaxIterations {
 		select {
 		case <-ctx.Done():
 			sendAndCollect(models.AgentError{Error: "agent generation cancelled"})
+			if runSpan != nil {
+				runSpan.SetAttributes(
+					attribute.Int("agent.iterations", iterations),
+					attribute.Float64("agent.total_thinking_time_seconds", totalThinkingTime),
+					attribute.Float64("agent.total_tool_execution_time_seconds", totalToolExecutionTime),
+					attribute.Int("agent.total_tool_calls", totalToolCalls),
+				)
+				runSpan.RecordError(ctx.Err())
+				runSpan.SetStatus(codes.Error, ctx.Err().Error())
+			}
 			return
 		default:
 		}
@@ -288,13 +337,28 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 		sendAndCollect(models.AgentStartThinking{})
 
 		response, err := a.generate(ctx)
+		thinkingDuration := time.Since(thinkingStartedAt).Seconds()
+		totalThinkingTime += thinkingDuration
+
 		if err != nil {
 			if strings.Contains(err.Error(), "429") {
+				if runSpan != nil {
+					runSpan.AddEvent("agent.rate_limited", trace.WithAttributes(
+						attribute.Int("iteration", iterations),
+					))
+				}
 				time.Sleep(3 * time.Second)
 				iterations += 1
 				continue
 			}
 			sendAndCollect(models.AgentError{Error: fmt.Sprintf("agent generation failed: %v", err)})
+			if runSpan != nil {
+				runSpan.SetAttributes(
+					attribute.Int("agent.iterations", iterations),
+					attribute.Float64("agent.total_thinking_time_seconds", totalThinkingTime),
+				)
+			}
+			recordSpanError(runSpan, err)
 			return
 		}
 
@@ -303,24 +367,54 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 			a.stats.Usage.PromptTokens += usage.PromptTokens
 			a.stats.Usage.CompletionTokens += usage.CompletionTokens
 			a.stats.Usage.TotalTokens = a.stats.Usage.PromptTokens + a.stats.Usage.CompletionTokens
+			if runSpan != nil {
+				runSpan.AddEvent("agent.usage", trace.WithAttributes(
+					attribute.Int("prompt_tokens", usage.PromptTokens),
+					attribute.Int("completion_tokens", usage.CompletionTokens),
+					attribute.Int("total_tokens", a.stats.Usage.TotalTokens),
+				))
+			}
 		}
 
 		if response.Content == "" && len(response.ToolCalls) == 0 {
 			sendAndCollect(models.AgentError{Error: "agent returned an empty response"})
+			if runSpan != nil {
+				runSpan.SetStatus(codes.Error, "agent returned an empty response")
+			}
 			return
 		}
 
 		if response.Content != "" {
-			durationSeconds := time.Since(thinkingStartedAt).Seconds()
 			sendAndCollect(models.AgentThought{
 				Content:         response.Content,
-				DurationSeconds: durationSeconds,
+				DurationSeconds: thinkingDuration,
 			})
+			if runSpan != nil {
+				runSpan.AddEvent("agent.thought", trace.WithAttributes(
+					attribute.Int("iteration", iterations),
+					attribute.Float64("thinking_duration_seconds", thinkingDuration),
+					attribute.Int("thought_length", len(response.Content)),
+				))
+			}
 		}
 		a.history = append(a.history, response)
 
 		if len(response.ToolCalls) == 0 {
 			sendAndCollect(models.AgentFinalResponse{})
+			if runSpan != nil {
+				totalDuration := time.Since(runStartTime).Seconds()
+				runSpan.SetAttributes(
+					attribute.Int("agent.iterations", iterations+1),
+					attribute.Float64("agent.total_duration_seconds", totalDuration),
+					attribute.Float64("agent.total_thinking_time_seconds", totalThinkingTime),
+					attribute.Float64("agent.total_tool_execution_time_seconds", totalToolExecutionTime),
+					attribute.Int("agent.total_tool_calls", totalToolCalls),
+					attribute.Int("agent.successful_tool_calls", successfulToolCalls),
+					attribute.Int("agent.failed_tool_calls", failedToolCalls),
+					attribute.Int("agent.final_history_size", len(a.history)),
+				)
+				runSpan.SetStatus(codes.Ok, "agent finished")
+			}
 			return
 		}
 
@@ -331,6 +425,15 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 		}
 
 		toolResultChan := make(chan toolResult, len(response.ToolCalls))
+		totalToolCalls += len(response.ToolCalls)
+
+		if runSpan != nil {
+			runSpan.AddEvent("agent.tool_calls_batch", trace.WithAttributes(
+				attribute.Int("iteration", iterations),
+				attribute.Int("tool_count", len(response.ToolCalls)),
+			))
+		}
+
 		for _, toolCall := range response.ToolCalls {
 			go func(tc schema.ToolCall) {
 				toolID := int(atomic.AddInt64(&a.stats.NextExecutingToolID, 1))
@@ -344,6 +447,14 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 				result, err := a.invokeTool(ctx, tc)
 
 				durationSeconds := time.Since(startedAt).Seconds()
+				totalToolExecutionTime += durationSeconds
+
+				if err != nil {
+					failedToolCalls += 1
+				} else {
+					successfulToolCalls += 1
+				}
+
 				sendAndCollect(models.AgentExecutingToolFinish{
 					ID:              toolID,
 					Name:            tc.Function.Name,
@@ -386,6 +497,20 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 	sendAndCollect(models.AgentError{
 		Error: fmt.Sprintf("Sorry, I've reached the maximum iterations %d and still couldn't produce a final answer", a.config.MaxIterations),
 	})
+	if runSpan != nil {
+		totalDuration := time.Since(runStartTime).Seconds()
+		runSpan.SetAttributes(
+			attribute.Int("agent.iterations", iterations),
+			attribute.Float64("agent.total_duration_seconds", totalDuration),
+			attribute.Float64("agent.total_thinking_time_seconds", totalThinkingTime),
+			attribute.Float64("agent.total_tool_execution_time_seconds", totalToolExecutionTime),
+			attribute.Int("agent.total_tool_calls", totalToolCalls),
+			attribute.Int("agent.successful_tool_calls", successfulToolCalls),
+			attribute.Int("agent.failed_tool_calls", failedToolCalls),
+			attribute.Int("agent.final_history_size", len(a.history)),
+		)
+		runSpan.SetStatus(codes.Error, "agent reached max iterations")
+	}
 }
 
 func (a *Agent) waitForNextTurn() {
@@ -406,32 +531,94 @@ func (a *Agent) waitForNextTurn() {
 }
 
 func (a *Agent) generate(ctx context.Context) (*schema.Message, error) {
+	var span trace.Span
+	if isTelemetryEnabled() {
+		tracer := otel.Tracer("alter/agent")
+		ctx, span = tracer.Start(ctx, "agent.generate",
+			trace.WithAttributes(
+				attribute.String("agent.model_id", a.config.ModelID),
+			),
+		)
+		defer span.End()
+	}
+
 	model, err := getModel(ctx, a.config.ModelID)
 	if err != nil {
+		recordSpanError(span, err)
 		return nil, err
 	}
 
 	modelWithTools, err := model.WithTools(a.tools)
 	if err != nil {
+		recordSpanError(span, err)
 		return nil, err
 	}
 
 	response, err := modelWithTools.Generate(ctx, a.history)
 	if err != nil {
+		recordSpanError(span, err)
 		return nil, err
+	}
+
+	if span != nil && response != nil {
+		span.SetAttributes(
+			attribute.Int("agent.history_length", len(a.history)),
+			attribute.Int("agent.tool_calls", len(response.ToolCalls)),
+			attribute.Int("agent.response_length", len(response.Content)),
+		)
+		if response.ResponseMeta != nil && response.ResponseMeta.Usage != nil {
+			span.SetAttributes(
+				attribute.Int("llm.prompt_tokens", response.ResponseMeta.Usage.PromptTokens),
+				attribute.Int("llm.completion_tokens", response.ResponseMeta.Usage.CompletionTokens),
+				attribute.Int("llm.total_tokens", response.ResponseMeta.Usage.PromptTokens+response.ResponseMeta.Usage.CompletionTokens),
+			)
+		}
+		span.SetStatus(codes.Ok, "generation successful")
 	}
 	return response, nil
 }
 
 func (a *Agent) invokeTool(ctx context.Context, toolCall schema.ToolCall) (string, error) {
+	var span trace.Span
+	if isTelemetryEnabled() {
+		tracer := otel.Tracer("alter/agent")
+		ctx, span = tracer.Start(ctx, "agent.tool_call",
+			trace.WithAttributes(
+				attribute.String("tool.name", toolCall.Function.Name),
+				attribute.String("tool.call_id", toolCall.ID),
+				attribute.String("tool.args", toolCall.Function.Arguments),
+			),
+		)
+		defer span.End()
+	}
+
 	targetTool, exists := a.toolsMap[toolCall.Function.Name]
 	if !exists {
-		return "", fmt.Errorf("agent tool not found: %s", toolCall.Function.Name)
+		err := fmt.Errorf("agent tool not found: %s", toolCall.Function.Name)
+		recordSpanError(span, err)
+		return "", err
 	}
 
 	result, err := targetTool.InvokableRun(ctx, toolCall.Function.Arguments)
 	if err != nil {
+		recordSpanError(span, err)
 		return "", err
 	}
+
+	if span != nil {
+		span.SetAttributes(
+			attribute.Int("tool.result_length", len(result)),
+			attribute.Bool("tool.success", true),
+		)
+		span.SetStatus(codes.Ok, "tool execution successful")
+	}
 	return result, nil
+}
+
+func recordSpanError(span trace.Span, err error) {
+	if err == nil || span == nil {
+		return
+	}
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
 }

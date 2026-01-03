@@ -716,7 +716,7 @@ func addPacked(a, b []int, sign int) []int {
 	lenA, lenB := len(a), len(b)
 	maxLen := max(lenA, lenB)
 	out := make([]int, maxLen)
-	for i := 0; i < maxLen; i++ {
+	for i := 0; i < maxLen; i += 1 {
 		valA := 0
 		if i < lenA {
 			valA = a[i]

@@ -134,3 +134,53 @@ func (m *manager) stop(ctx context.Context, id string) error {
 
 	return agent.Cancel(ctx)
 }
+
+func (m *manager) run(ctx context.Context, agentType AgentType, cfg Config) (Status, error) {
+	agentID, err := m.create(agentType, cfg)
+	if err != nil {
+		return Status{}, err
+	}
+
+	cleanup := func() {
+		_ = m.delete(agentID)
+	}
+
+	if err := m.start(ctx, agentID); err != nil {
+		cleanup()
+		return Status{}, err
+	}
+
+	agent, err := m.get(agentID)
+	if err != nil {
+		cleanup()
+		return Status{}, err
+	}
+
+	cancelled := false
+	select {
+	case <-agent.Done():
+	case <-ctx.Done():
+		cancelled = true
+		_ = m.stop(ctx, agentID)
+		<-agent.Done()
+	}
+
+	status := agent.Status()
+	cleanup()
+
+	if cancelled {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return status, fmt.Errorf("agent run cancelled: %w", ctxErr)
+		}
+		return status, fmt.Errorf("agent run cancelled")
+	}
+
+	if status.State == StateFailed {
+		if status.Error != nil {
+			return status, fmt.Errorf("agent failed: %w", status.Error)
+		}
+		return status, fmt.Errorf("agent failed with exit code %d", status.ExitCode)
+	}
+
+	return status, nil
+}

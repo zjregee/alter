@@ -18,6 +18,7 @@ var allowedCommands = map[string]struct{}{
 	"tree": {},
 	"rg":   {},
 	"grep": {},
+	"find": {},
 	"cat":  {},
 	"head": {},
 	"tail": {},

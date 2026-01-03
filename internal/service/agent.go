@@ -76,6 +76,34 @@ func buildSystemPrompt(workDir string) string {
 	return prompt
 }
 
+func sanitizeHistory(workDir string, history []*schema.Message) []*schema.Message {
+	if len(history) == 0 {
+		return []*schema.Message{
+			{
+				Role:    schema.System,
+				Content: buildSystemPrompt(workDir),
+			},
+		}
+	}
+
+	cleaned := make([]*schema.Message, 0, len(history))
+	for _, msg := range history {
+		if msg == nil {
+			continue
+		}
+		cleaned = append(cleaned, msg)
+	}
+
+	if len(cleaned) == 0 {
+		cleaned = append(cleaned, &schema.Message{
+			Role:    schema.System,
+			Content: buildSystemPrompt(workDir),
+		})
+	}
+
+	return cleaned
+}
+
 func NewAgent(ctx context.Context, cfg models.AgentConfig) (*Agent, error) {
 	if err := applyDefaults(&cfg); err != nil {
 		return nil, err
@@ -125,7 +153,7 @@ func NewAgentWithMessages(ctx context.Context, id string, cfg models.AgentConfig
 		config:   cfg,
 		tools:    toolInfos,
 		toolsMap: toolsMap,
-		history:  history,
+		history:  sanitizeHistory(cfg.WorkDir, history),
 		turns:    turns,
 		stats:    stats,
 	}, nil
@@ -384,6 +412,7 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 			return
 		}
 
+		durationSeconds := time.Since(thinkingStartedAt).Seconds()
 		if response.Content != "" {
 			sendAndCollect(models.AgentThought{
 				Content:         response.Content,
@@ -396,6 +425,11 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 					attribute.Int("thought_length", len(response.Content)),
 				))
 			}
+		} else if len(response.ToolCalls) > 0 {
+			sendAndCollect(models.AgentThought{
+				Content:         "",
+				DurationSeconds: durationSeconds,
+			})
 		}
 		a.history = append(a.history, response)
 
@@ -542,6 +576,8 @@ func (a *Agent) generate(ctx context.Context) (*schema.Message, error) {
 		defer span.End()
 	}
 
+	a.history = sanitizeHistory(a.config.WorkDir, a.history)
+
 	model, err := getModel(ctx, a.config.ModelID)
 	if err != nil {
 		recordSpanError(span, err)
@@ -574,6 +610,9 @@ func (a *Agent) generate(ctx context.Context) (*schema.Message, error) {
 			)
 		}
 		span.SetStatus(codes.Ok, "generation successful")
+	}
+	if response == nil {
+		return nil, fmt.Errorf("model returned nil response")
 	}
 	return response, nil
 }

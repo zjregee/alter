@@ -15,6 +15,16 @@ import (
 
 var _ agents.Agent = (*ClaudeAgent)(nil)
 
+func init() {
+	agents.RegisterFactory(agents.TypeClaudeAgent, func(cfg agents.Config) agents.Agent {
+		agent, err := NewClaudeAgent(cfg)
+		if err != nil {
+			return nil
+		}
+		return agent
+	})
+}
+
 type ClaudeAgent struct {
 	mu     sync.RWMutex
 	id     string

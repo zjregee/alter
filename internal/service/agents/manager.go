@@ -50,3 +50,7 @@ func StopAgent(ctx context.Context, id string) error {
 func DeleteAgent(id string) error {
 	return instance.delete(id)
 }
+
+func RunAgent(ctx context.Context, agentType AgentType, cfg Config) (Status, error) {
+	return instance.run(ctx, agentType, cfg)
+}

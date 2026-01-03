@@ -6,111 +6,47 @@ import (
 	"strings"
 	"time"
 
-	serviceagents "github.com/zjregee/alter/internal/service/agents"
+	agentsService "github.com/zjregee/alter/internal/service/agents"
+	_ "github.com/zjregee/alter/internal/service/agents/provider/claude"
+	_ "github.com/zjregee/alter/internal/service/agents/provider/codex"
+	_ "github.com/zjregee/alter/internal/service/agents/provider/gemini"
 )
 
-type AgentsParams struct {
-	Action    string                  `json:"action" jsonschema:"description=Action to perform: create, start, stop, delete."`
-	AgentID   string                  `json:"agent_id,omitempty" jsonschema:"description=Agent ID for start, stop, or delete."`
-	AgentType serviceagents.AgentType `json:"agent_type,omitempty" jsonschema:"description=Agent type for create."`
-	Config    *AgentConfig            `json:"config,omitempty" jsonschema:"description=Agent config for create."`
-}
-
-type AgentConfig struct {
-	Name           string   `json:"name,omitempty" jsonschema:"description=Agent display name."`
-	Description    string   `json:"description,omitempty" jsonschema:"description=Agent description."`
-	Prompt         string   `json:"prompt,omitempty" jsonschema:"description=Agent system prompt."`
-	WorkDir        string   `json:"work_dir,omitempty" jsonschema:"description=Agent working directory."`
-	Env            []string `json:"env,omitempty" jsonschema:"description=Environment variables in KEY=VALUE format."`
-	TimeoutSeconds int      `json:"timeout_seconds,omitempty" jsonschema:"description=Execution timeout in seconds."`
-}
-
-func AgentsTool(ctx context.Context, params *AgentsParams) (string, error) {
+func AgentsTool(ctx context.Context, params *RunAgentParams) (string, error) {
 	if params == nil {
 		return "", fmt.Errorf("params must be provided")
 	}
 
-	action := strings.ToLower(strings.TrimSpace(params.Action))
-	switch action {
-	case "create":
-		return handleCreate(params)
-	case "start":
-		return handleStart(ctx, params)
-	case "stop":
-		return handleStop(ctx, params)
-	case "delete":
-		return handleDelete(params)
-	default:
-		if action == "" {
-			return "", fmt.Errorf("action must be provided")
-		}
-		return "", fmt.Errorf("unsupported action: %s", action)
-	}
-}
-
-func handleCreate(params *AgentsParams) (string, error) {
 	if params.AgentType == "" {
-		return "", fmt.Errorf("agent_type must be provided for create")
+		return "", fmt.Errorf("agent_type must be provided")
 	}
 	if params.Config == nil {
-		return "", fmt.Errorf("config must be provided for create")
+		return "", fmt.Errorf("config must be provided")
 	}
 
 	cfg := params.Config.toAgentConfig()
-	agentID, err := serviceagents.CreateAgent(params.AgentType, cfg)
+	if agentsService.AgentType(params.AgentType) == agentsService.TypeClaudeAgent {
+		cfg.Env = mergeClaudeEnvDefaults(cfg.Env)
+	}
+	status, err := agentsService.RunAgent(ctx, agentsService.AgentType(params.AgentType), cfg)
+	if err != nil && status.State == "" {
+		return "", err
+	}
+
+	result := formatRunResult(params, status, err)
 	if err != nil {
-		return "", err
+		return result, err
 	}
-
-	return fmt.Sprintf("Action: create\nAgent ID: %s", agentID), nil
+	return result, nil
 }
 
-func handleStart(ctx context.Context, params *AgentsParams) (string, error) {
-	agentID := strings.TrimSpace(params.AgentID)
-	if agentID == "" {
-		return "", fmt.Errorf("agent_id must be provided for start")
-	}
-
-	if err := serviceagents.StartAgentExecution(ctx, agentID); err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("Action: start\nAgent ID: %s", agentID), nil
-}
-
-func handleStop(ctx context.Context, params *AgentsParams) (string, error) {
-	agentID := strings.TrimSpace(params.AgentID)
-	if agentID == "" {
-		return "", fmt.Errorf("agent_id must be provided for stop")
-	}
-
-	if err := serviceagents.StopAgent(ctx, agentID); err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("Action: stop\nAgent ID: %s", agentID), nil
-}
-
-func handleDelete(params *AgentsParams) (string, error) {
-	agentID := strings.TrimSpace(params.AgentID)
-	if agentID == "" {
-		return "", fmt.Errorf("agent_id must be provided for delete")
-	}
-
-	if err := serviceagents.DeleteAgent(agentID); err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("Action: delete\nAgent ID: %s", agentID), nil
-}
-
-func (c *AgentConfig) toAgentConfig() serviceagents.Config {
+func (c *AgentConfig) toAgentConfig() agentsService.Config {
 	var timeout time.Duration
 	if c.TimeoutSeconds > 0 {
 		timeout = time.Duration(c.TimeoutSeconds) * time.Second
 	}
 
-	return serviceagents.Config{
+	return agentsService.Config{
 		Name:        strings.TrimSpace(c.Name),
 		Description: strings.TrimSpace(c.Description),
 		Prompt:      c.Prompt,
@@ -118,4 +54,61 @@ func (c *AgentConfig) toAgentConfig() serviceagents.Config {
 		Env:         c.Env,
 		Timeout:     timeout,
 	}
+}
+
+func mergeClaudeEnvDefaults(env []string) []string {
+	defaults := []string{}
+
+	envMap := make(map[string]string, len(defaults)+len(env))
+	for _, item := range defaults {
+		if key, value, ok := agentsService.ParseEnvVar(item); ok {
+			envMap[key] = value
+		}
+	}
+	for _, item := range env {
+		if key, value, ok := agentsService.ParseEnvVar(item); ok {
+			envMap[key] = value
+		}
+	}
+
+	merged := make([]string, 0, len(envMap))
+	for key, value := range envMap {
+		merged = append(merged, key+"="+value)
+	}
+	return merged
+}
+
+func formatRunResult(params *RunAgentParams, status agentsService.Status, runErr error) string {
+	var builder strings.Builder
+
+	if name := strings.TrimSpace(params.Config.Name); name != "" {
+		fmt.Fprintf(&builder, "Agent name: %s\n", name)
+	}
+	fmt.Fprintf(&builder, "Agent type: %s\n", strings.TrimSpace(params.AgentType))
+	if workDir := strings.TrimSpace(params.Config.WorkDir); workDir != "" {
+		fmt.Fprintf(&builder, "Work directory: %s\n", workDir)
+	}
+
+	fmt.Fprintf(&builder, "State: %s\n", status.State)
+	fmt.Fprintf(&builder, "Exit code: %d\n", status.ExitCode)
+	if runErr != nil {
+		fmt.Fprintf(&builder, "Error: %s\n", runErr.Error())
+	}
+
+	if status.Output == "" {
+		fmt.Fprint(&builder, "Output: (empty)\n")
+	} else {
+		fmt.Fprint(&builder, "Output:\n```text\n")
+		builder.WriteString(strings.TrimRight(status.Output, "\n"))
+		fmt.Fprint(&builder, "\n```\n")
+	}
+	if status.ErrorOutput == "" {
+		fmt.Fprint(&builder, "Error output: (empty)")
+	} else {
+		fmt.Fprint(&builder, "Error output:\n```text\n")
+		builder.WriteString(strings.TrimRight(status.ErrorOutput, "\n"))
+		fmt.Fprint(&builder, "\n```")
+	}
+
+	return builder.String()
 }

@@ -15,6 +15,16 @@ import (
 
 var _ agents.Agent = (*GeminiAgent)(nil)
 
+func init() {
+	agents.RegisterFactory(agents.TypeGeminiAgent, func(cfg agents.Config) agents.Agent {
+		agent, err := NewGeminiAgent(cfg)
+		if err != nil {
+			return nil
+		}
+		return agent
+	})
+}
+
 type GeminiAgent struct {
 	mu     sync.RWMutex
 	id     string

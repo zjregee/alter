@@ -10,21 +10,14 @@ import (
 )
 
 const (
-	threadKeyPrefix   = "thread:"
-	workspaceInfosKey = "workspace:infos"
+	threadKeyPrefix = "thread:"
 )
-
-const defaultWorkspacePath = "/Users/zjregee/Code/alter"
 
 type ThreadRecord struct {
 	Info    *models.ThreadInfo          `json:"info"`
 	History []*schema.Message           `json:"history"`
 	Turns   []*models.ThreadMessageTurn `json:"turns"`
 	Stats   *models.AgentStats          `json:"stats"`
-}
-
-type WorkspaceInfosRecord struct {
-	Infos []*models.WorkspaceInfo `json:"infos"`
 }
 
 func SaveThread(info *models.ThreadInfo, history []*schema.Message, turns []*models.ThreadMessageTurn, stats *models.AgentStats) error {
@@ -80,50 +73,4 @@ func DeleteThread(id string) error {
 	}
 
 	return Delete([]byte(threadKeyPrefix + id))
-}
-
-func SaveWorkspaceInfos(infos []*models.WorkspaceInfo) error {
-	record := WorkspaceInfosRecord{
-		Infos: infos,
-	}
-
-	data, err := json.Marshal(record)
-	if err != nil {
-		return fmt.Errorf("failed to marshal workspace infos: %w", err)
-	}
-
-	return Put([]byte(workspaceInfosKey), data)
-}
-
-func LoadWorkspaceInfos() (*WorkspaceInfosRecord, error) {
-	value, err := Get([]byte(workspaceInfosKey))
-	if err != nil {
-		return nil, err
-	}
-
-	if len(value) == 0 {
-		return &WorkspaceInfosRecord{
-			Infos: []*models.WorkspaceInfo{},
-		}, nil
-	}
-
-	var record WorkspaceInfosRecord
-	if err := json.Unmarshal(value, &record); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal workspace infos: %w", err)
-	}
-
-	return &record, nil
-}
-
-func initWorkspaceInfos() {
-	infos := []*models.WorkspaceInfo{
-		{
-			Path:      defaultWorkspacePath,
-			IsDefault: true,
-		},
-	}
-
-	if err := SaveWorkspaceInfos(infos); err != nil {
-		panic(err)
-	}
 }

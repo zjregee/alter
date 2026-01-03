@@ -481,8 +481,8 @@ func GenerateThreadTitle(ctx context.Context, messages []*schema.Message) (strin
 		return defaultThreadTitle, nil
 	}
 
-	systemPrompt := "You are a helpful assistant that generates concise titles for conversations."
-	userPrompt := fmt.Sprintf("Based on the following conversation, generate a concise and descriptive title (maximum 10 characters). The title should capture the main topic or question. Only return the title text, nothing else.\nConversation:\n%s", conversationSummary.String())
+	systemPrompt := "You are a helpful assistant that generates clear, informative titles for conversations."
+	userPrompt := fmt.Sprintf("Based on the following conversation, generate a descriptive title. Prefer 12-20 characters, and avoid overly short titles. The title should capture the main topic or question. Only return the title text, nothing else.\nConversation:\n%s", conversationSummary.String())
 	titleMessages := []*schema.Message{
 		{
 			Role:    schema.System,
@@ -521,9 +521,9 @@ func cleanThreadTitle(title string) string {
 	}
 
 	runeCount := utf8.RuneCountInString(title)
-	if runeCount > 10 {
+	if runeCount > 24 {
 		runes := []rune(title)
-		title = string(runes[:9]) + "..."
+		title = string(runes[:21]) + "..."
 	}
 
 	if title == "" {

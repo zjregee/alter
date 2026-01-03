@@ -10,7 +10,7 @@ import (
 
 const (
 	BashToolName        = "bash"
-	BashToolDescription = "Executes a single-line bash command and returns the combined output with the exit code. Supported commands: ls, tree, rg, grep, cat, head, tail, sed, awk. Shell operators (|, &, ;, >, <, `, $()) are not supported."
+	BashToolDescription = "Executes a single-line bash command and returns the combined output with the exit code. Supported commands: ls, tree, rg, grep, find, cat, head, tail, sed, awk. Shell operators (|, &, ;, >, <, `, $()) are not supported."
 )
 
 type BashParams struct {

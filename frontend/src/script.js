@@ -23,7 +23,7 @@ const workspaceToggleLabel = document.querySelector('.workspace-toggle-label');
 const workspaceDropdown = document.querySelector('.workspace-dropdown');
 const workspaceList = document.querySelector('.workspace-list');
 const workspaceSelectBtn = document.querySelector('.workspace-select-btn');
-const workspaceRefreshBtn = document.querySelector('.workspace-refresh');
+const workspaceSearchInput = document.querySelector('.workspace-search-input');
 const modelSwitcher = document.querySelector('.model-switcher');
 const modelToggle = document.querySelector('.model-toggle');
 const modelToggleLabel = document.querySelector('.model-toggle-label');
@@ -43,18 +43,35 @@ let searchTerm = '';
 let dragSourceID = '';
 let workspacesCache = [];
 let currentWorkspacePath = '';
+let workspaceSearchTerm = '';
 let modelsCache = [];
 let modelSearchTerm = '';
 let currentModelID = '';
 let thinkingStartTime = 0;
 let thinkingTimerInterval = null;
 let currentToolCallElements = new Map();
+let toolTimerIntervals = new Map();
 let lastThoughtText = '';
 let lastThoughtElement = null;
 let lastThinkingDuration = null;
 let lastAssistantTurnIndex = -1;
 let cancelHandled = false;
 let cancelVisible = false;
+let isComposing = false;
+let suppressEnterOnce = false;
+let isLoadingHistory = false;
+let loadSequence = 0;
+let activeLoadToken = 0;
+let activeLoadThreadID = '';
+let userMessageCount = 0;
+let pendingRegenerateContext = null;
+const userMessageCache = [];
+const turnRegenerateContext = new Map();
+const pendingAgentMessages = [];
+
+function agentScroll() {
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
 
 function setProcessingState(nextState) {
     isProcessing = nextState;
@@ -145,6 +162,12 @@ sendBtn.addEventListener('click', async () => {
         }
         
         addUserMessage(message, true);
+        userMessageCache[userMessageCount] = message;
+        pendingRegenerateContext = {
+            userIndex: userMessageCount,
+            userContent: message
+        };
+        userMessageCount += 1;
         chatInput.value = '';
         chatInput.style.height = 'auto';
         
@@ -181,19 +204,80 @@ cancelBtn?.addEventListener('click', async () => {
 
 chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
+        if (isComposing || e.isComposing || e.keyCode === 229 || suppressEnterOnce) {
+            e.preventDefault();
+            suppressEnterOnce = false;
+            return;
+        }
         e.preventDefault();
         sendBtn.click();
     }
 });
 
+chatInput.addEventListener('compositionstart', () => {
+    isComposing = true;
+});
+
+chatInput.addEventListener('compositionend', () => {
+    isComposing = false;
+    suppressEnterOnce = true;
+    setTimeout(() => {
+        suppressEnterOnce = false;
+    }, 0);
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isProcessing && cancelVisible && !cancelBtn?.disabled) {
+        e.preventDefault();
+        cancelBtn?.click();
+    }
+});
+
 function createTurnContainer() {
     if (currentTurnContainer) return;
-    currentTurnContainer = document.createElement('div');
-    currentTurnContainer.className = 'message-group assistant-message';
+    setChatEmptyState(false);
+    const turnContainer = document.createElement('div');
+    turnContainer.className = 'message-group assistant-message';
+
+    const handleMouseEnter = () => {
+        turnContainer.classList.add('is-hovered');
+    };
+    
+    const handleMouseLeave = (e) => {
+        const relatedTarget = e.relatedTarget;
+        
+        // If moving to the action buttons, keep the hover state
+        if (relatedTarget) {
+            const actions = turnContainer.querySelector('.message-actions');
+            if (actions && (relatedTarget === actions || actions.contains(relatedTarget))) {
+                return;
+            }
+        }
+
+        if (turnContainer.querySelector('.more-menu.is-open')) {
+            return;
+        }
+        
+        turnContainer.classList.remove('is-hovered');
+    };
+
+    turnContainer.addEventListener('mouseenter', handleMouseEnter);
+    turnContainer.addEventListener('mouseleave', handleMouseLeave);
+
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
-    currentTurnContainer.appendChild(messageContent);
-    chatMessages.appendChild(currentTurnContainer);
+    turnContainer.appendChild(messageContent);
+    chatMessages.appendChild(turnContainer);
+    currentTurnContainer = turnContainer;
+
+    if (!isLoadingHistory && pendingRegenerateContext) {
+        setTurnRegenerateContext(
+            currentTurnContainer,
+            pendingRegenerateContext.userIndex,
+            pendingRegenerateContext.userContent
+        );
+        pendingRegenerateContext = null;
+    }
 }
 
 function showThinkingStatus() {
@@ -245,6 +329,33 @@ function hideThinkingStatus() {
     }
 }
 
+function clearToolTimers() {
+    for (const intervalId of toolTimerIntervals.values()) {
+        clearInterval(intervalId);
+    }
+    toolTimerIntervals.clear();
+}
+
+function startToolTimer(toolCallEl, toolId) {
+    const durationEl = toolCallEl.querySelector('.duration');
+    if (!durationEl) return;
+    durationEl.textContent = '0.0s';
+    const startTime = parseInt(toolCallEl.dataset.startTime, 10);
+    const intervalId = setInterval(() => {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        durationEl.textContent = `${elapsed}s`;
+    }, 100);
+    toolTimerIntervals.set(toolId, intervalId);
+}
+
+function stopToolTimer(toolId) {
+    const intervalId = toolTimerIntervals.get(toolId);
+    if (intervalId) {
+        clearInterval(intervalId);
+    }
+    toolTimerIntervals.delete(toolId);
+}
+
 function appendThoughtBlock(text, durationInSeconds) {
     createTurnContainer();
 
@@ -279,33 +390,58 @@ function appendThoughtBlock(text, durationInSeconds) {
             displayText = JSON.stringify(displayText, null, 2);
         }
     }
-    renderMarkdownInto(thoughtBlock.querySelector('.markdown-body'), displayText);
-    lastThoughtText = typeof displayText === 'string' ? displayText.trim() : String(displayText).trim();
+    const trimmedText = typeof displayText === 'string' ? displayText.trim() : String(displayText).trim();
+    if (!trimmedText) {
+        thoughtBlock.classList.add('is-empty');
+        const content = thoughtBlock.querySelector('.thought-content');
+        if (content) {
+            content.style.display = 'none';
+        }
+    }
+    thoughtBlock.dataset.rawMarkdown = typeof displayText === 'string' ? displayText : String(displayText);
+    if (trimmedText) {
+        renderMarkdownInto(thoughtBlock.querySelector('.markdown-body'), displayText);
+    }
+    lastThoughtText = trimmedText;
     lastThoughtElement = thoughtBlock;
 
     currentTurnContainer.querySelector('.message-content').appendChild(thoughtBlock);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    agentScroll();
 }
 
 // 处理来自 Go 后端的 agent 消息
 function handleAgentMessage(data) {
+    if (cancelHandled || !data) return;
+    if (isLoadingHistory) {
+        pendingAgentMessages.push({
+            data,
+            token: activeLoadToken,
+            threadID: activeLoadThreadID
+        });
+        return;
+    }
+    processAgentMessage(data);
+}
+
+function processAgentMessage(data) {
     if (cancelHandled) return;
     const { type, content } = data;
 
     if (isProcessing && !cancelVisible) {
         setCancelVisibility(true);
     }
-    
+
     switch (type) {
         case 'start_thinking':
             showThinkingStatus();
             break;
-        case 'thought':
+        case 'thought': {
             const duration = thinkingStartTime ? (Date.now() - thinkingStartTime) / 1000 : null;
             hideThinkingStatus();
             appendThoughtBlock(getEventText(content), duration);
             lastThinkingDuration = duration;
             break;
+        }
         case 'executing_tool_start':
             hideThinkingStatus();
             appendToolCall(safeParseJSON(content));
@@ -316,7 +452,7 @@ function handleAgentMessage(data) {
         case 'final_response':
             handleFinalResponse();
             break;
-        case 'error':
+        case 'error': {
             const errorText = getEventText(content);
             if (isCancelMessage(errorText)) {
                 handleCancel();
@@ -324,6 +460,7 @@ function handleAgentMessage(data) {
                 handleError(errorText);
             }
             break;
+        }
     }
 }
 
@@ -338,6 +475,7 @@ function isCancelMessage(message) {
 
 function handleFinalResponse() {
     hideThinkingStatus();
+    clearToolTimers();
     if (currentTurnContainer) {
         appendTurnActions(currentTurnContainer, true);
     }
@@ -354,6 +492,7 @@ function handleFinalResponse() {
 function handleCancel() {
     cancelHandled = true;
     hideThinkingStatus();
+    clearToolTimers();
     if (!currentTurnContainer) {
         createTurnContainer();
     }
@@ -370,6 +509,7 @@ function handleCancel() {
 
 function handleError(errorMessage) {
     hideThinkingStatus();
+    clearToolTimers();
     if (!currentTurnContainer) {
         createTurnContainer();
     }
@@ -384,11 +524,28 @@ function handleError(errorMessage) {
     lastThinkingDuration = null;
 }
 
+function handleThreadTitleUpdated(data) {
+    const threadID = data?.thread_id || data?.threadID || data?.id;
+    const title = data?.title;
+    if (!threadID || typeof title !== 'string' || title.trim() === '') return;
+
+    const thread = threadsCache.find(item => item.id === threadID);
+    if (thread) {
+        thread.title = title;
+        renderThreadList();
+        return;
+    }
+
+    loadThreads(false);
+}
+
 window.runtime.EventsOn('agent:message', handleAgentMessage);
 window.runtime.EventsOn('agent:messages_truncated', handleMessagesTruncated);
 window.runtime.EventsOn('feed:item_pushed', handleFeedItemPushed);
+window.runtime.EventsOn('thread:title_updated', handleThreadTitleUpdated);
 
 function addUserMessage(text, scrollToBottom = true) {
+    setChatEmptyState(false);
     const messageGroup = document.createElement('div');
     messageGroup.className = 'message-group user-message';
     
@@ -412,14 +569,54 @@ function addUserMessage(text, scrollToBottom = true) {
     
     chatMessages.appendChild(messageGroup);
     if (scrollToBottom) {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        requestAnimationFrame(() => {
+            const messageTop = messageGroup.getBoundingClientRect().top;
+            const containerTop = chatMessages.getBoundingClientRect().top;
+            chatMessages.scrollTo({
+                top: chatMessages.scrollTop + (messageTop - containerTop),
+                behavior: 'smooth'
+            });
+        });
     }
 }
 
+function setChatEmptyState(visible) {
+    if (!chatMessages) return;
+    chatMessages.classList.toggle('is-empty', visible);
+    const existing = chatMessages.querySelector('.chat-empty');
+    if (!visible) {
+        existing?.remove();
+        return;
+    }
+    if (existing) return;
+    const empty = document.createElement('div');
+    empty.className = 'chat-empty';
+    empty.innerHTML = `
+        <div class="chat-empty-title">Start a new chat</div>
+        <div class="chat-empty-sub">Try: summarize files, triage issues, or run a skill.</div>
+    `;
+    chatMessages.appendChild(empty);
+}
+
 async function loadThreadMessages(threadID) {
+    const shouldRestoreThinking = isProcessing;
+    let restoredThinking = false;
+    const loadToken = ++loadSequence;
+    activeLoadToken = loadToken;
+    activeLoadThreadID = threadID;
+    isLoadingHistory = true;
     try {
         const turns = await window.go.app.App.GetThreadMessages(threadID);
+        hideThinkingStatus();
+        currentTurnContainer = null;
+        currentToolCallElements.clear();
+        lastThoughtText = '';
+        lastThoughtElement = null;
+        lastThinkingDuration = null;
         chatMessages.innerHTML = '';
+        turnRegenerateContext.clear();
+        userMessageCache.length = 0;
+        userMessageCount = 0;
 
         lastAssistantTurnIndex = -1;
         for (let i = turns.length - 1; i >= 0; i -= 1) {
@@ -429,25 +626,39 @@ async function loadThreadMessages(threadID) {
             }
         }
 
+        let userIndex = -1;
         for (let i = 0; i < turns.length; i += 1) {
             const turn = turns[i];
             if (!turn || !turn.events) continue;
 
             if (turn.role === 'user') {
+                userIndex += 1;
                 const userEvent = turn.events[0];
                 if (userEvent && userEvent.type === 'user_message') {
                     const payload = safeParseJSON(userEvent.content);
                     if (payload && typeof payload === 'object' && payload.content) {
+                        userMessageCache[userIndex] = payload.content;
                         addUserMessage(payload.content, false);
                     }
                 }
+                if (typeof userMessageCache[userIndex] !== 'string') {
+                    userMessageCache[userIndex] = '';
+                }
             } else if (turn.role === 'assistant') {
                 createTurnContainer(); // Create the container for the turn
+                if (userIndex >= 0) {
+                    setTurnRegenerateContext(
+                        currentTurnContainer,
+                        userIndex,
+                        userMessageCache[userIndex]
+                    );
+                }
                 currentToolCallElements.clear();
                 lastThoughtText = '';
                 lastThoughtElement = null;
                 lastThinkingDuration = null;
                 let sawFinalResponse = false;
+                let isCancelled = false;
 
                 for (const event of turn.events) {
                     if (!event) continue;
@@ -464,7 +675,7 @@ async function loadThreadMessages(threadID) {
                             break;
                         }
                         case 'executing_tool_start':
-                            appendToolCall(safeParseJSON(event.content));
+                            appendToolCall(safeParseJSON(event.content), true);
                             break;
                         case 'executing_tool_finish':
                             updateToolCall(safeParseJSON(event.content), true);
@@ -477,26 +688,53 @@ async function loadThreadMessages(threadID) {
                              const historyErrorText = getEventText(event.content);
                              if (isCancelMessage(historyErrorText)) {
                                  appendStatusMessage(currentTurnContainer, 'Cancelled', 'var(--text-tertiary)');
+                                 isCancelled = true;
                              } else {
                                  appendStatusMessage(currentTurnContainer, '错误: ' + historyErrorText, 'var(--error-text)');
                              }
                             break;
                     }
                 }
-                if (sawFinalResponse) {
-                    const allowRegenerate = i === lastAssistantTurnIndex;
+                const hasTurnContent = currentTurnContainer
+                    ?.querySelector('.message-content')
+                    ?.children.length > 0;
+                if (hasTurnContent && !isCancelled) {
+                    const allowRegenerate = sawFinalResponse;
                     appendTurnActions(currentTurnContainer, allowRegenerate);
                 }
                 currentTurnContainer = null;
                 currentToolCallElements.clear();
             }
         }
+        userMessageCount = userMessageCache.length;
+        setChatEmptyState(!chatMessages.querySelector('.message-group'));
+        if (shouldRestoreThinking && !currentThinkingBlock) {
+            showThinkingStatus();
+            restoredThinking = true;
+        }
     } catch (error) {
         console.error('加载线程消息失败:', error);
     } finally {
+        if (activeLoadToken !== loadToken) {
+            return;
+        }
+        isLoadingHistory = false;
+        if (pendingAgentMessages.length) {
+            const queued = pendingAgentMessages
+                .filter((item) => item.token === loadToken && item.threadID === threadID)
+                .map((item) => item.data);
+            pendingAgentMessages.length = 0;
+            queued.forEach(processAgentMessage);
+        }
         chatMessages.scrollTop = chatMessages.scrollHeight;
         // Ensure state is clean
-        currentTurnContainer = null;
+        if (shouldRestoreThinking && !restoredThinking && !currentThinkingBlock) {
+            showThinkingStatus();
+            restoredThinking = true;
+        }
+        if (!restoredThinking) {
+            currentTurnContainer = null;
+        }
         currentToolCallElements.clear();
     }
 }
@@ -514,7 +752,7 @@ function appendStatusMessage(container, text, color) {
     content.appendChild(status);
 }
 
-function appendToolCall(payload) {
+function appendToolCall(payload, isHistory = false) {
     if (!payload || typeof payload !== 'object' || !payload.id) return;
     createTurnContainer();
     
@@ -562,13 +800,17 @@ function appendToolCall(payload) {
 
     toolCallsContainer.appendChild(toolCallEl);
     currentToolCallElements.set(payload.id, toolCallEl);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    if (!isHistory) {
+        startToolTimer(toolCallEl, payload.id);
+    }
+    agentScroll();
 }
 
 function updateToolCall(payload, isHistory = false) {
     if (!payload || typeof payload !== 'object' || !payload.id || !currentToolCallElements.has(payload.id)) return;
 
     const toolCallEl = currentToolCallElements.get(payload.id);
+    stopToolTimer(payload.id);
     
     const statusBadge = toolCallEl.querySelector('.status-badge');
     statusBadge.textContent = 'Completed';
@@ -601,7 +843,7 @@ function updateToolCall(payload, isHistory = false) {
     if (!isHistory) {
         currentToolCallElements.delete(payload.id);
     }
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    agentScroll();
 }
 
 
@@ -634,31 +876,31 @@ function setWorkspaceDropdownOpen(isOpen) {
     workspaceSwitcher.classList.toggle('open', isOpen);
     workspaceToggle.setAttribute('aria-expanded', String(isOpen));
     workspaceDropdown.setAttribute('aria-hidden', String(!isOpen));
+    if (isOpen && workspaceSearchInput) {
+        workspaceSearchInput.focus();
+    }
 }
 
 function renderWorkspaceList() {
     if (!workspaceList) return;
     workspaceList.innerHTML = '';
-    if (workspacesCache.length === 0) {
-        workspaceList.innerHTML = '<div class="workspace-empty">No workspace available</div>';
+
+    const term = workspaceSearchTerm.toLowerCase();
+    const filtered = workspacesCache.filter(w => !term || getWorkspaceName(w.path).toLowerCase().includes(term) || w.path.toLowerCase().includes(term));
+
+    if (filtered.length === 0) {
+        workspaceList.innerHTML = `<div class="workspace-empty">${workspacesCache.length === 0 ? 'No workspaces available' : 'No workspaces found'}</div>`;
         return;
     }
 
-    workspacesCache.forEach(workspace => {
+    filtered.forEach(workspace => {
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'workspace-item';
-        if (workspace.path === currentWorkspacePath) item.classList.add('active');
+        if (workspace.path === currentWorkspacePath) item.classList.add('selected');
         item.innerHTML = `
-            <span class="workspace-item-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 7a2 2 0 0 1 2-2h3l2 2h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                </svg>
-            </span>
-            <div class="workspace-item-content">
-                <span class="workspace-item-name">${getWorkspaceName(workspace.path)}</span>
-                <span class="workspace-item-path">${workspace.path}</span>
-            </div>
+            <span class="workspace-item-name">${getWorkspaceName(workspace.path)}</span>
+            <span class="workspace-item-path">${workspace.path}</span>
         `;
         item.addEventListener('click', () => setWorkspace(workspace.path));
         workspaceList.appendChild(item);
@@ -697,11 +939,7 @@ async function selectWorkspaceDirectory() {
     }
 }
 
-async function resetWorkspace() {
-    if (isProcessing || !currentThreadID) return;
-    const fallback = getDefaultWorkspacePath();
-    if (fallback) await setWorkspace(fallback);
-}
+
 
 async function loadModels() {
     if (!window.go?.app?.App?.ListModels) return;
@@ -883,6 +1121,7 @@ async function switchThread(threadID) {
     syncCurrentThreadWorkspace();
     await loadThreadMessages(threadID);
     setProcessingState(false);
+    chatInput?.focus();
 }
 
 async function persistThreadOrder() {
@@ -900,8 +1139,21 @@ async function createNewThread() {
     try {
         currentThreadID = await window.go.app.App.CreateThread();
         chatMessages.innerHTML = '';
+        setChatEmptyState(true);
+        currentTurnContainer = null;
+        currentToolCallElements.clear();
+        lastThoughtText = '';
+        lastThoughtElement = null;
+        lastThinkingDuration = null;
+        pendingRegenerateContext = null;
+        turnRegenerateContext.clear();
+        userMessageCache.length = 0;
+        userMessageCount = 0;
+        lastAssistantTurnIndex = -1;
         setProcessingState(false);
         await loadThreads(false);
+        threadList.scrollTop = 0;
+        chatInput?.focus();
     } catch (error) {
         console.error('创建新线程失败:', error);
     }
@@ -914,17 +1166,25 @@ if (workspaceToggle) {
     workspaceToggle.addEventListener('click', (e) => {
         e.stopPropagation();
         if (workspaceToggle.disabled) return;
-        setWorkspaceDropdownOpen(!workspaceSwitcher.classList.contains('open'));
+        const nextOpen = !workspaceSwitcher.classList.contains('open');
+        if (nextOpen) setModelDropdownOpen(false);
+        setWorkspaceDropdownOpen(nextOpen);
     });
 }
 workspaceSelectBtn?.addEventListener('click', async (e) => { e.stopPropagation(); await selectWorkspaceDirectory(); setWorkspaceDropdownOpen(false); });
-workspaceRefreshBtn?.addEventListener('click', async (e) => { e.stopPropagation(); await resetWorkspace(); });
+
+if (workspaceSearchInput) {
+    workspaceSearchInput.addEventListener('input', () => { workspaceSearchTerm = workspaceSearchInput.value.trim().toLowerCase(); renderWorkspaceList(); });
+    workspaceSearchInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') { setWorkspaceDropdownOpen(false); workspaceToggle?.focus(); } });
+}
 
 if (modelToggle) {
     modelToggle.addEventListener('click', (e) => {
         e.stopPropagation();
         if (modelToggle.disabled) return;
-        setModelDropdownOpen(!modelSwitcher.classList.contains('open'));
+        const nextOpen = !modelSwitcher.classList.contains('open');
+        if (nextOpen) setWorkspaceDropdownOpen(false);
+        setModelDropdownOpen(nextOpen);
     });
 }
 if (modelSearchInput) {
@@ -1005,6 +1265,37 @@ function getEventText(content) {
     return typeof content === 'string' ? content : '';
 }
 
+function closeAllActionMenus(except) {
+    document.querySelectorAll('.more-menu.is-open').forEach((menu) => {
+        if (except && menu === except) return;
+        menu.classList.remove('is-open');
+        const messageGroup = menu.closest('.message-group.assistant-message');
+        if (messageGroup && !messageGroup.matches(':hover')) {
+            messageGroup.classList.remove('is-hovered');
+        }
+    });
+}
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.more-menu')) {
+        closeAllActionMenus();
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeAllActionMenus();
+    }
+});
+
+chatMessages?.addEventListener('scroll', () => {
+    closeAllActionMenus();
+});
+
+window.addEventListener('resize', () => {
+    closeAllActionMenus();
+});
+
 function appendTurnActions(container, allowRegenerate) {
     if (!container) return;
     if (container.querySelector('.message-actions')) return;
@@ -1012,37 +1303,146 @@ function appendTurnActions(container, allowRegenerate) {
     const actions = document.createElement('div');
     actions.className = 'message-actions';
 
+    // Keep hover state when mouse enters the action buttons
+    actions.addEventListener('mouseenter', () => {
+        container.classList.add('is-hovered');
+    });
+    
+    // Remove hover state when mouse leaves the action buttons
+    actions.addEventListener('mouseleave', (e) => {
+        const relatedTarget = e.relatedTarget;
+        
+        // If moving back to the container, keep the hover state
+        if (relatedTarget && (relatedTarget === container || container.contains(relatedTarget))) {
+            return;
+        }
+
+        if (container.querySelector('.more-menu.is-open')) {
+            return;
+        }
+        
+        container.classList.remove('is-hovered');
+    });
+
     const copyBtn = document.createElement('button');
     copyBtn.className = 'icon-btn';
     copyBtn.title = '复制';
     copyBtn.innerHTML = `
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="9" y="9" width="13" height="13" rx="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
         </svg>
     `;
-    copyBtn.addEventListener('click', () => handleCopyTurn(container));
+    copyBtn.addEventListener('click', () => handleCopyTurn(container, copyBtn));
 
     const regenBtn = document.createElement('button');
     regenBtn.className = 'icon-btn';
-    regenBtn.title = allowRegenerate ? '重新生成' : '仅支持最新回复重新生成';
+    regenBtn.title = allowRegenerate ? '重新生成' : '仅支持已完成回复重新生成';
     regenBtn.innerHTML = `
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 12a9 9 0 0 1 14-7l2 2"></path>
-            <path d="M21 12a9 9 0 0 1-14 7l-2-2"></path>
-            <path d="M17 3h4v4"></path>
-            <path d="M7 21H3v-4"></path>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="18 2 22 5 18 8"></polyline>
+            <path d="M2 10.5V9a4 4 0 0 1 4-4h16"></path>
+            <polyline points="6 22 2 19 6 16"></polyline>
+            <path d="M22 13.5v2a4 4 0 0 1-4 4H2"></path>
         </svg>
     `;
     if (!allowRegenerate) {
         regenBtn.classList.add('is-disabled');
     } else {
-        regenBtn.addEventListener('click', handleRegenerateTurn);
+        regenBtn.addEventListener('click', () => handleRegenerateTurn(container));
     }
 
     actions.appendChild(copyBtn);
     actions.appendChild(regenBtn);
+    actions.appendChild(createMoreMenu(container));
     container.querySelector('.message-content').appendChild(actions);
+}
+
+function positionMoreMenuList(menu, trigger) {
+    const list = menu.querySelector('.more-menu-list');
+    if (!list || !trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const width = list.offsetWidth || 160;
+    const padding = 8;
+    const gap = 6;
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = document.documentElement.clientHeight;
+    const minLeft = padding;
+    const maxLeft = viewportWidth - padding;
+    const minTop = padding;
+    const maxTop = viewportHeight - padding;
+
+    let left = rect.right - width;
+    let top = rect.bottom + gap;
+
+    if (left < minLeft) {
+        left = minLeft;
+    } else if (left + width > maxLeft) {
+        left = Math.max(minLeft, maxLeft - width);
+    }
+
+    if (top < minTop) {
+        top = minTop;
+    }
+
+    const availableBelow = Math.max(0, maxTop - top);
+    list.style.maxHeight = `${Math.max(availableBelow, 0)}px`;
+    list.style.left = `${Math.round(left)}px`;
+    list.style.top = `${Math.round(top)}px`;
+}
+
+function createMoreMenu(container) {
+    const menu = document.createElement('div');
+    menu.className = 'more-menu';
+
+    const moreBtn = document.createElement('button');
+    moreBtn.className = 'icon-btn';
+    moreBtn.title = '更多';
+    moreBtn.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <circle cx="5" cy="12" r="1.8"></circle>
+            <circle cx="12" cy="12" r="1.8"></circle>
+            <circle cx="19" cy="12" r="1.8"></circle>
+        </svg>
+    `;
+    moreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const willOpen = !menu.classList.contains('is-open');
+        closeAllActionMenus(menu);
+        if (willOpen) {
+            positionMoreMenuList(menu, moreBtn);
+        }
+        menu.classList.toggle('is-open', willOpen);
+    });
+
+    const list = document.createElement('div');
+    list.className = 'more-menu-list';
+
+    const plainItem = document.createElement('button');
+    plainItem.type = 'button';
+    plainItem.className = 'more-menu-item';
+    plainItem.textContent = 'Copy as plain text';
+    plainItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleCopyTurn(container, moreBtn);
+        menu.classList.remove('is-open');
+    });
+
+    const markdownItem = document.createElement('button');
+    markdownItem.type = 'button';
+    markdownItem.className = 'more-menu-item';
+    markdownItem.textContent = 'Copy as markdown';
+    markdownItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleCopyTurnMarkdown(container, moreBtn);
+        menu.classList.remove('is-open');
+    });
+
+    list.appendChild(plainItem);
+    list.appendChild(markdownItem);
+    menu.appendChild(moreBtn);
+    menu.appendChild(list);
+    return menu;
 }
 
 function getTurnCopyText(container) {
@@ -1050,17 +1450,53 @@ function getTurnCopyText(container) {
     const parts = [];
     const blocks = container.querySelectorAll('.thought-content, .message-content > p');
     blocks.forEach((block) => {
-        const text = block.textContent?.trim();
+        const text = block.innerText?.trim();
         if (text) parts.push(text);
     });
     return parts.join('\n\n');
 }
 
-async function handleCopyTurn(container) {
-    const text = getTurnCopyText(container);
-    if (!text) return;
+function getTurnCopyMarkdown(container) {
+    if (!container) return '';
+    const parts = [];
+    const thoughtBlocks = container.querySelectorAll('.thought-block');
+    thoughtBlocks.forEach((block) => {
+        const raw = block.dataset.rawMarkdown;
+        const text = typeof raw === 'string' ? raw.trim() : block.textContent?.trim();
+        if (text) parts.push(text);
+    });
+
+    const messageContent = container.querySelector('.message-content');
+    let rawMessage = messageContent?.dataset.rawMarkdown || '';
+    if (rawMessage && rawMessage.trim()) {
+        parts.push(rawMessage.trim());
+    } else {
+        const rawBlocks = messageContent
+            ? Array.from(messageContent.querySelectorAll('[data-raw-markdown]'))
+                .filter((node) => !node.closest('.thought-block'))
+            : [];
+        if (rawBlocks.length) {
+            rawBlocks.forEach((block) => {
+                const raw = block.dataset.rawMarkdown;
+                const text = typeof raw === 'string' ? raw.trim() : block.textContent?.trim();
+                if (text) parts.push(text);
+            });
+        } else {
+            const blocks = container.querySelectorAll('.message-content > p');
+            blocks.forEach((block) => {
+                const text = block.textContent?.trim();
+                if (text) parts.push(text);
+            });
+        }
+    }
+    return parts.join('\n\n');
+}
+
+async function copyTextToClipboard(text) {
+    if (!text) return false;
     try {
         await navigator.clipboard.writeText(text);
+        return true;
     } catch (error) {
         const textarea = document.createElement('textarea');
         textarea.value = text;
@@ -1068,21 +1504,93 @@ async function handleCopyTurn(container) {
         textarea.style.left = '-9999px';
         document.body.appendChild(textarea);
         textarea.select();
-        document.execCommand('copy');
+        const copied = document.execCommand('copy');
         textarea.remove();
+        return copied;
     }
 }
 
-async function handleRegenerateTurn() {
+async function handleCopyTurn(container, button) {
+    const copied = await copyTextToClipboard(getTurnCopyText(container));
+    if (copied) {
+        showCopyFeedback(button);
+    }
+}
+
+async function handleCopyTurnMarkdown(container, button) {
+    const copied = await copyTextToClipboard(getTurnCopyMarkdown(container));
+    if (copied) {
+        showCopyFeedback(button);
+    }
+}
+
+function showCopyFeedback(button) {
+    if (!button) return;
+    if (!button.dataset.originalIcon) {
+        button.dataset.originalIcon = button.innerHTML;
+    }
+    if (!button.dataset.originalTitle) {
+        button.dataset.originalTitle = button.title || '';
+    }
+    if (button._copyTimer) {
+        clearTimeout(button._copyTimer);
+    }
+    button.classList.add('is-copied');
+    button.title = '已复制';
+    button.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+    `;
+    button._copyTimer = setTimeout(() => {
+        if (!button.isConnected) return;
+        button.classList.remove('is-copied');
+        button.title = button.dataset.originalTitle || '';
+        if (button.dataset.originalIcon) {
+            button.innerHTML = button.dataset.originalIcon;
+        }
+    }, 500);
+}
+
+function setTurnRegenerateContext(container, userIndex, userContent) {
+    if (!container) return;
+    if (typeof userIndex !== 'number' || userIndex < 0) return;
+    turnRegenerateContext.set(container, {
+        userIndex,
+        userContent: typeof userContent === 'string' ? userContent : ''
+    });
+}
+
+async function handleRegenerateTurn(container) {
     if (!currentThreadID || isProcessing) return;
+    const context = container ? turnRegenerateContext.get(container) : null;
+    const userIndex = context?.userIndex;
+    const userContent = context?.userContent || '';
+    if (typeof userIndex !== 'number' || userIndex < 0) {
+        handleError('无法定位要重新生成的消息');
+        return;
+    }
+    if (!userContent.trim()) {
+        handleError('无法找到要重新生成的内容');
+        return;
+    }
     setProcessingState(true);
     lastThoughtText = '';
     lastThoughtElement = null;
     lastThinkingDuration = null;
+    pendingRegenerateContext = {
+        userIndex,
+        userContent
+    };
 
     try {
-        await window.go.app.App.RegenerateLastResponse(currentThreadID);
+        await window.go.app.App.EditAndResendMessage(
+            currentThreadID,
+            userContent,
+            userIndex
+        );
     } catch (error) {
+        pendingRegenerateContext = null;
         console.error('Regenerate response error:', error);
         handleError('抱歉，发生了错误: ' + error);
     }
@@ -1367,6 +1875,7 @@ function renderMarkdownInto(target, content) {
         target.textContent = '';
         return;
     }
+    target.dataset.rawMarkdown = typeof content === 'string' ? content : String(content);
     if (window.marked?.parse && window.DOMPurify?.sanitize) {
         const html = window.marked.parse(content);
         const safeHtml = window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });

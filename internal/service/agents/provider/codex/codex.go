@@ -15,6 +15,16 @@ import (
 
 var _ agents.Agent = (*CodexAgent)(nil)
 
+func init() {
+	agents.RegisterFactory(agents.TypeCodexAgent, func(cfg agents.Config) agents.Agent {
+		agent, err := NewCodexAgent(cfg)
+		if err != nil {
+			return nil
+		}
+		return agent
+	})
+}
+
 type CodexAgent struct {
 	mu     sync.RWMutex
 	id     string

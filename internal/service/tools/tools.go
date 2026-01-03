@@ -85,5 +85,5 @@ func init() {
 	registerTool(feed.PushFeedToolName, feed.GetPushFeedTool)
 	registerTool(skills.ListSkillsToolName, skills.ListSkillsTool)
 	registerTool(skills.LoadSkillToolName, skills.LoadSkillTool)
-	registerTool(agents.AgentsToolName, agents.GetAgentsTool)
+	registerTool(agents.RunAgentToolName, agents.GetAgentsTool)
 }

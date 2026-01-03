@@ -69,49 +69,53 @@
                 <div class="chat-messages">
                     <!-- 消息内容将通过 JavaScript 动态加载 -->
                 </div>
-                <div class="chat-input-container">
-                    <div class="input-wrapper">
-                        <textarea class="chat-input" placeholder="Type a message..." rows="3"></textarea>
-                        <div class="input-actions">
-                            <div class="workspace-switcher">
-                                <button class="workspace-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M3 7a2 2 0 0 1 2-2h3l2 2h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                                    </svg>
-                                    <span class="workspace-toggle-label">Workspace</span>
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                    </svg>
-                                </button>
-                                <div class="workspace-dropdown" aria-hidden="true">
-                                    <div class="workspace-header">
-                                        <div>
-                                            <div class="workspace-title">Workspace</div>
-                                            <div class="workspace-subtitle">All tool operations will use this directory as working directory</div>
-                                        </div>
-                                        <button class="workspace-refresh" type="button" title="Reset workspace">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <polyline points="23 4 23 10 17 10"></polyline>
-                                                <polyline points="1 20 1 14 7 14"></polyline>
-                                                <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"></path>
-                                                <path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"></path>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    <div class="workspace-list" role="listbox"></div>
-                                    <button class="workspace-select-btn" type="button">
-                                        <span class="workspace-select-icon">+</span>
-                                        Select Directory...
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="model-switcher">
-                                <button class="model-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
-                                    <span class="model-toggle-label">Select model</span>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                    </svg>
-                                </button>
+	                <div class="chat-input-container">
+	                    <div class="input-wrapper">
+	                        <textarea class="chat-input" placeholder="Type a message..." rows="3"></textarea>
+	                        <div class="input-actions">
+	                            <div class="workspace-switcher">
+	                                                                <button class="workspace-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
+	                                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+	                                                                        <path d="M3 7a2 2 0 0 1 2-2h3l2 2h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                                                    </svg>
+                                                                    <span class="workspace-toggle-label">Workspace</span>
+                                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                                                    </svg>
+                                                                </button>
+	                                                            <div class="workspace-dropdown" aria-hidden="true">
+	                                                                <div class="workspace-controls">
+	                                                                    <div class="model-search workspace-search">
+	                                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+	                                                                            <circle cx="11" cy="11" r="8"></circle>
+	                                                                            <path d="m21 21-4.35-4.35"></path>
+	                                                                        </svg>
+	                                                                        <input class="workspace-search-input" type="text" placeholder="Search workspaces..." aria-label="Search workspaces">
+	                                                                    </div>
+	                                                                    <button class="workspace-select-btn" type="button" aria-label="Select directory">
+	                                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+	                                                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+	                                                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+	                                                                        </svg>
+	                                                                    </button>
+	                                                                </div>
+	                                                                <div class="workspace-list" role="listbox"></div>
+	                                                            </div>
+	                                                        </div>
+                                                            <div class="model-switcher">
+                                                                <button class="model-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
+                                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                                        <path d="m12 3-1.9 4.8-4.8 1.9 4.8 1.9 1.9 4.8 1.9-4.8 4.8-1.9-4.8-1.9L12 3z"/>
+                                                                        <path d="M5 3v4"/>
+                                                                        <path d="M19 17v4"/>
+                                                                        <path d="M3 5h4"/>
+                                                                        <path d="M17 19h4"/>
+                                                                    </svg>
+                                                                    <span class="model-toggle-label">Select model</span>
+                                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                                                    </svg>
+                                                                </button>
                                 <div class="model-dropdown" aria-hidden="true">
                                     <div class="model-search">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

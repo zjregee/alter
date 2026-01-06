@@ -1,0 +1,52 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --app-bg: #242932;
+    --sidebar-bg: #1e2229;
+    --sidebar-border: #2b313c;
+    --panel-bg: #2a303a;
+    --panel-bg-alt: #323846;
+    --panel-border: #353c48;
+    --text-primary: #d6dbe4;
+    --text-secondary: #9aa3b2;
+    --text-tertiary: #7f8896;
+    --accent: #4f82d9;
+    --accent-strong: #5a8fe6;
+    --user-bubble: #2f3a4a;
+    --assistant-bubble: #2a303a;
+    --input-bg: #1f232b;
+    --input-border: #2f3541;
+    --success-bg: #1f3a2a;
+    --success-text: #5bd68e;
+    --error-bg: #3a1f1f;
+    --error-text: #d65b5b;
+    --scroll-thumb: #3a414d;
+    --scroll-thumb-hover: #4b5360;
+    --font-base: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+body {
+    font-family: var(--font-base);
+    font-size: 12px;
+    background-color: var(--app-bg);
+    color: var(--text-primary);
+    overflow: hidden;
+    height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+    font-family: inherit;
+}
+
+.app-container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+}

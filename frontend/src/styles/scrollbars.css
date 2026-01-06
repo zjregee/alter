@@ -1,0 +1,29 @@
+/* Scrollbar styles */
+.thread-list::-webkit-scrollbar,
+.chat-messages::-webkit-scrollbar,
+.workspace-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.thread-list::-webkit-scrollbar-track,
+.chat-messages::-webkit-scrollbar-track,
+.workspace-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.thread-list::-webkit-scrollbar-thumb,
+.chat-messages::-webkit-scrollbar-thumb,
+.workspace-list::-webkit-scrollbar-thumb {
+    background: var(--scroll-thumb);
+    border-radius: 3px;
+}
+
+.thread-list::-webkit-scrollbar-thumb:hover,
+.chat-messages::-webkit-scrollbar-thumb:hover,
+.workspace-list::-webkit-scrollbar-thumb:hover {
+    background: var(--scroll-thumb-hover);
+}
+
+.model-list::-webkit-scrollbar {
+    display: none; /* For WebKit browsers */
+}

@@ -1,0 +1,48 @@
+/* New styles for thought blocks */
+.thought-block {
+    margin: 4px 0;
+    padding-bottom: 0;
+}
+
+.thought-header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 0 4px;
+    font-size: 12px;
+    line-height: 1.2;
+    color: var(--text-tertiary);
+}
+
+.response-meta {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 0 4px;
+    font-size: 12px;
+    line-height: 1.2;
+    color: var(--text-tertiary);
+}
+
+.thought-content {
+    padding: 4px 0 4px;
+}
+
+.thought-content p {
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.message-content .thought-block + .tool-call {
+    margin-top: 1px;
+}
+
+.message-content .tool-call + .thought-block {
+    margin-top: 2px;
+}
+.message-content .tool-call + .tool-call {
+    margin-top: 10px;
+}

@@ -1,0 +1,124 @@
+.markdown-body {
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-primary);
+}
+
+.markdown-body > :first-child {
+    margin-top: 0;
+}
+
+.markdown-body > :last-child {
+    margin-bottom: 0;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+    margin: 12px 0 6px;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.markdown-body h1 { font-size: 18px; }
+.markdown-body h2 { font-size: 16px; }
+.markdown-body h3 { font-size: 14px; }
+.markdown-body h4 { font-size: 13px; }
+.markdown-body h5,
+.markdown-body h6 { font-size: 12px; }
+
+.markdown-body p {
+    margin: 0 0 8px;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+    margin: 0 0 8px;
+    padding-left: 2px;
+    list-style-position: inside;
+}
+
+.markdown-body li {
+    margin: 4px 0;
+}
+
+.markdown-body blockquote {
+    margin: 8px 0;
+    padding: 8px 12px;
+    border-left: 3px solid var(--panel-border);
+    background: var(--panel-bg);
+    color: var(--text-secondary);
+}
+
+.markdown-body code {
+    padding: 2px 4px;
+    border-radius: 4px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+}
+
+.markdown-body pre {
+    margin: 8px 0;
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--panel-bg-alt);
+    border: 1px solid var(--panel-border);
+    overflow: auto;
+}
+
+.markdown-body pre code {
+    padding: 0;
+    border: none;
+    background: transparent;
+    font-size: 11px;
+}
+
+.markdown-body a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.markdown-body a:hover {
+    text-decoration: underline;
+}
+
+.markdown-body img {
+    max-width: 100%;
+    border-radius: 6px;
+}
+
+.markdown-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 11px;
+}
+
+.markdown-body th,
+.markdown-body td {
+    border: 1px solid var(--panel-border);
+    padding: 6px 8px;
+    text-align: left;
+}
+
+.markdown-body th {
+    background: var(--panel-bg-alt);
+    color: var(--text-primary);
+}
+
+
+/* Custom spacing for thinking status elements */
+.thinking-status > .tool-icon {
+    margin-right: 7px;
+}
+.thinking-status > .thinking-text-label {
+    margin-right: 3px;
+}
+.thinking-status > .thinking-dots {
+    margin-right: 3px;
+}

@@ -1,0 +1,27 @@
+/* ===== Right Main Content ===== */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--app-bg);
+    min-height: 0;
+    min-width: 0;
+}
+
+.view-content {
+    display: none;
+    flex-direction: column;
+}
+
+.view-content.active {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+}
+
+.notification-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+}

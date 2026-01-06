@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zjregee/alter/internal/service"
+	"github.com/zjregee/alter/internal/service/tools"
 	"github.com/zjregee/alter/internal/utils"
 )
 
@@ -30,6 +31,7 @@ func (a *App) Startup(ctx context.Context) {
 
 	a.ctx = ctx
 	a.agentService = agentService
+	tools.StartMCPToolWarmup(ctx)
 }
 
 func (a *App) Shutdown(ctx context.Context) {

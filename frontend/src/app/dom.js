@@ -1,5 +1,6 @@
 export const dom = {
     chatInput: document.querySelector('.chat-input'),
+    inputWrapper: document.querySelector('.input-wrapper'),
     sendBtn: document.querySelector('.send-btn'),
     cancelBtn: document.querySelector('.cancel-btn'),
     sendCancelStack: document.querySelector('.send-cancel-stack'),

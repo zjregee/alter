@@ -622,7 +622,6 @@ func (a *Agent) generate(ctx context.Context, onThinking func(string), onContent
 	var reasoningBuilder strings.Builder
 	var allToolCalls []schema.ToolCall
 
-	// Initialize a base response structure to ensure we return something even if stream is empty or weird
 	finalResponse = &schema.Message{
 		Role: schema.Assistant,
 	}
@@ -637,8 +636,6 @@ func (a *Agent) generate(ctx context.Context, onThinking func(string), onContent
 			return nil, err
 		}
 
-		// Some providers might send the same text in both fields or use them interchangeably in error.
-		// We prioritize Content if both are present and identical.
 		if chunk.ReasoningContent != "" && chunk.ReasoningContent == chunk.Content {
 			chunk.ReasoningContent = ""
 		}
@@ -657,7 +654,6 @@ func (a *Agent) generate(ctx context.Context, onThinking func(string), onContent
 			}
 		}
 
-		// Capture metadata from the last chunk that has it, or accumulate logic if needed
 		if chunk.ResponseMeta != nil {
 			finalResponse.ResponseMeta = chunk.ResponseMeta
 		}
@@ -671,7 +667,6 @@ func (a *Agent) generate(ctx context.Context, onThinking func(string), onContent
 	finalResponse.ReasoningContent = reasoningBuilder.String()
 	finalResponse.ToolCalls = allToolCalls
 
-	// Final safety check: if reasoning is identical to content, it's likely a provider error
 	if finalResponse.ReasoningContent != "" && finalResponse.ReasoningContent == finalResponse.Content {
 		finalResponse.ReasoningContent = ""
 	}

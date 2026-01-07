@@ -14,6 +14,15 @@ export function setupChatInputHandlers() {
         });
     }
 
+    if (dom.inputWrapper && dom.chatInput) {
+        dom.inputWrapper.addEventListener('click', (e) => {
+            if (e.target.closest('button') || e.target.closest('a') || e.target === dom.chatInput) {
+                return;
+            }
+            dom.chatInput.focus();
+        });
+    }
+
     dom.sendBtn?.addEventListener('click', handleSendMessage);
     dom.cancelBtn?.addEventListener('click', handleCancelClick);
 

@@ -12,6 +12,7 @@
 }
 
 .chat-input {
+    display: block;
     width: 100%;
     background: none;
     border: none;
@@ -23,6 +24,7 @@
     outline: none;
     margin-bottom: 4px;
     min-height: 58px;
+    overflow-y: auto;
 }
 
 .chat-input::placeholder {

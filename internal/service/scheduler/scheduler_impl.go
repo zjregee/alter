@@ -168,6 +168,10 @@ func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *mod
 }
 
 func (s *Scheduler) loadSchedules() error {
+	if err := s.syncSchedules(); err != nil {
+		utils.GetLogger().Printf("Error syncing schedules: %v", err)
+	}
+
 	schedules, err := storage.LoadSchedules()
 	if err != nil {
 		return err
@@ -205,6 +209,65 @@ func (s *Scheduler) loadSchedules() error {
 			schedule: schedule,
 			nextRun:  nextRun,
 		})
+	}
+
+	return nil
+}
+
+func (s *Scheduler) syncSchedules() error {
+	fileSchedules, err := loadSchedulesFromFiles()
+	if err != nil {
+		return err
+	}
+
+	dbSchedules, err := storage.LoadSchedules()
+	if err != nil {
+		return err
+	}
+	dbSchedulesMap := make(map[string]*models.Schedule)
+	for _, s := range dbSchedules {
+		dbSchedulesMap[s.ID] = s
+	}
+
+	for id, fileSch := range fileSchedules {
+		dbSch, exists := dbSchedulesMap[id]
+		if !exists {
+			utils.GetLogger().Printf("Creating new schedule from file: %s", id)
+			if err := storage.SaveSchedule(fileSch); err != nil {
+				utils.GetLogger().Printf("Failed to save new schedule %s: %v", id, err)
+			}
+		} else {
+			dbSch.Name = fileSch.Name
+			dbSch.WorkflowConfig = fileSch.WorkflowConfig
+			dbSch.Enabled = fileSch.Enabled
+			dbSch.CronExpr = fileSch.CronExpr
+			dbSch.Timezone = fileSch.Timezone
+			dbSch.MaxRetries = fileSch.MaxRetries
+			dbSch.RetryInterval = fileSch.RetryInterval
+			dbSch.RetryBackoff = fileSch.RetryBackoff
+			dbSch.TimeoutSeconds = fileSch.TimeoutSeconds
+
+			nextRun, err := calculateNextRunFromNow(dbSch)
+			if err == nil {
+				dbSch.NextRunAt = timeToString(nextRun)
+			}
+
+			if err := storage.SaveSchedule(dbSch); err != nil {
+				utils.GetLogger().Printf("Failed to update schedule %s: %v", id, err)
+			}
+		}
+
+		delete(dbSchedulesMap, id)
+	}
+
+	for id, dbSch := range dbSchedulesMap {
+		if dbSch.Enabled {
+			utils.GetLogger().Printf("Disabling schedule not found in files: %s", id)
+			dbSch.Enabled = false
+			if err := storage.SaveSchedule(dbSch); err != nil {
+				utils.GetLogger().Printf("Failed to disable schedule %s: %v", id, err)
+			}
+		}
 	}
 
 	return nil

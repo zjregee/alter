@@ -3,17 +3,19 @@ package skills
 import (
 	"bufio"
 	"fmt"
-	"io/fs"
-	"path"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/zjregee/alter/internal/models"
-	assets "github.com/zjregee/alter/internal/service/assets/skills"
 )
 
-const skillsRoot = "."
+const (
+	skillsDirName = ".alter/skills"
+	skillFileName = "SKILL.md"
+)
 
 type skillFrontMatter struct {
 	Name        string `yaml:"name"`
@@ -39,7 +41,17 @@ func LoadAllSkillSummaries() ([]*models.SkillSummary, error) {
 }
 
 func loadSkills() ([]*models.SkillSummary, []*models.SkillContent, error) {
-	skillFiles, err := listSkillFiles(skillsRoot)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	skillsPath := filepath.Join(home, skillsDirName)
+	if _, err := os.Stat(skillsPath); os.IsNotExist(err) {
+		return nil, nil, nil
+	}
+
+	skillFiles, err := listSkillFiles(skillsPath)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -47,13 +59,13 @@ func loadSkills() ([]*models.SkillSummary, []*models.SkillContent, error) {
 	summaries := make([]*models.SkillSummary, 0, len(skillFiles))
 	contents := make([]*models.SkillContent, 0, len(skillFiles))
 
-	for _, filePath := range skillFiles {
-		content, err := fs.ReadFile(assets.SkillsFS, filePath)
+	for _, path := range skillFiles {
+		content, err := os.ReadFile(path)
 		if err != nil {
-			return nil, nil, fmt.Errorf("read skill file %s: %w", filePath, err)
+			return nil, nil, fmt.Errorf("read skill file %s: %w", path, err)
 		}
 
-		summary, body, err := parseSkillFile(filePath, string(content))
+		summary, body, err := parseSkillFile(path, string(content))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -68,7 +80,7 @@ func loadSkills() ([]*models.SkillSummary, []*models.SkillContent, error) {
 
 func listSkillFiles(root string) ([]string, error) {
 	var files []string
-	err := fs.WalkDir(assets.SkillsFS, root, func(path string, entry fs.DirEntry, err error) error {
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -77,7 +89,7 @@ func listSkillFiles(root string) ([]string, error) {
 			return nil
 		}
 
-		if strings.EqualFold(entry.Name(), "SKILL.md") {
+		if strings.EqualFold(entry.Name(), skillFileName) {
 			files = append(files, path)
 		}
 
@@ -125,7 +137,7 @@ func parseSkillFile(filePath string, content string) (*models.SkillSummary, stri
 	}
 
 	if frontMatter.Name == "" {
-		frontMatter.Name = path.Base(path.Dir(filePath))
+		frontMatter.Name = filepath.Base(filepath.Dir(filePath))
 	}
 
 	return &models.SkillSummary{

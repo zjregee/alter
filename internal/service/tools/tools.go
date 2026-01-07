@@ -149,7 +149,6 @@ func init() {
 	registerTool(bash.BashToolName, bash.GetBashTool)
 	registerTool(duckduckgo.DuckDuckGoToolName, duckduckgo.GetDuckDuckGoTool)
 	registerTool(feed.PushFeedToolName, feed.GetPushFeedTool)
-	registerTool(skills.ListSkillsToolName, skills.ListSkillsTool)
 	registerTool(skills.LoadSkillToolName, skills.LoadSkillTool)
 	registerTool(agents.RunAgentToolName, agents.GetAgentsTool)
 }

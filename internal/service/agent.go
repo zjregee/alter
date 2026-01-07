@@ -19,7 +19,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zjregee/alter/internal/models"
+	"github.com/zjregee/alter/internal/service/skills"
 	"github.com/zjregee/alter/internal/service/tools"
+	"github.com/zjregee/alter/internal/utils"
 )
 
 //go:embed assets/prompts/agent.txt
@@ -74,6 +76,21 @@ func buildSystemPrompt(workDir string) string {
 	prompt := string(promptContent)
 	prompt = strings.ReplaceAll(prompt, "[ROOT_DIRECTORY]", workDir)
 	prompt = strings.ReplaceAll(prompt, "[SYSTEM_TIME]", time.Now().Format(time.RFC3339))
+
+	summaries, err := skills.LoadAllSkillSummaries()
+	if err != nil {
+		utils.GetLogger().Printf("failed to load skill summaries: %v", err)
+	}
+
+	var skillsSection strings.Builder
+	if len(summaries) > 0 {
+		skillsSection.WriteString("可用技能：")
+		for _, s := range summaries {
+			fmt.Fprintf(&skillsSection, "\n- %s: %s", s.Name, s.Description)
+		}
+	}
+	prompt = strings.ReplaceAll(prompt, "[SKILLS]", skillsSection.String())
+
 	return prompt
 }
 

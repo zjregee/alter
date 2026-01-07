@@ -74,12 +74,21 @@ export function createTurnContainer() {
 
 export function showThinkingStatus() {
     createTurnContainer();
+    if (!state.currentTurnContainer) return;
 
-    if (state.currentThinkingBlock || !state.currentTurnContainer) return;
+    // Remove existing thinking block if any (though usually there isn't one at start)
+    if (state.currentThinkingBlock) {
+        state.currentThinkingBlock.remove();
+    }
 
     state.currentThinkingBlock = document.createElement('div');
-    state.currentThinkingBlock.className = 'thinking-status';
-    state.currentThinkingBlock.innerHTML = `
+    state.currentThinkingBlock.className = 'thought-block thinking';
+    const thinkingBlock = state.currentThinkingBlock;
+    
+    // Header
+    const header = document.createElement('div');
+    header.className = 'thought-header';
+    header.innerHTML = `
         <span class="tool-icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="m12 3-1.9 4.8-4.8 1.9 4.8 1.9 1.9 4.8 1.9-4.8 4.8-1.9-4.8-1.9L12 3z"/>
@@ -89,7 +98,7 @@ export function showThinkingStatus() {
                 <path d="M17 19h4"/>
             </svg>
         </span>
-        <span class="thinking-text-label">Thinking</span>
+        <span class="thinking-label">Thinking</span>
         <span class="thinking-dots">
             <span class="dot">.</span>
             <span class="dot">.</span>
@@ -97,16 +106,66 @@ export function showThinkingStatus() {
         </span>
         <span class="thinking-timer">0.0s</span>
     `;
-    state.currentThinkingBlock.style.display = 'flex';
+    
+    // Content area for reasoning stream
+    const content = document.createElement('div');
+    content.className = 'thought-content';
+    content.style.display = 'none';
+    content.innerHTML = '<div class="markdown-body"></div>';
 
-    state.currentTurnContainer.querySelector('.message-content').appendChild(state.currentThinkingBlock);
+    // Click to toggle
+    header.addEventListener('click', () => {
+        thinkingBlock.classList.toggle('expanded');
+        content.style.display = thinkingBlock.classList.contains('expanded') ? 'block' : 'none';
+    });
 
-    const timerElement = state.currentThinkingBlock.querySelector('.thinking-timer');
+    thinkingBlock.appendChild(header);
+    thinkingBlock.appendChild(content);
+
+    state.currentTurnContainer.querySelector('.message-content').appendChild(thinkingBlock);
+
+    state.currentThinkingText = '';
     state.thinkingStartTime = Date.now();
+    const timerElement = header.querySelector('.thinking-timer');
     state.thinkingTimerInterval = setInterval(() => {
         const elapsed = ((Date.now() - state.thinkingStartTime) / 1000).toFixed(1);
         timerElement.textContent = `${elapsed}s`;
     }, 100);
+}
+
+export function updateThinkingChunk(chunk) {
+    if (!state.currentThinkingBlock) return;
+    
+    state.currentThinkingText = (state.currentThinkingText || '') + chunk;
+    
+    const contentDiv = state.currentThinkingBlock.querySelector('.thought-content');
+    const mdBody = contentDiv.querySelector('.markdown-body');
+    
+    // If we have content, make sure the block indicates it implies 'Process'
+    if (state.currentThinkingText.trim() && !state.currentThinkingBlock.classList.contains('has-content')) {
+        state.currentThinkingBlock.classList.add('has-content');
+        const label = state.currentThinkingBlock.querySelector('.thinking-label');
+        if (label) label.textContent = 'Thinking';
+    }
+
+    renderMarkdownInto(mdBody, state.currentThinkingText);
+    agentScroll();
+}
+
+export function updateStreamChunk(chunk) {
+    createTurnContainer(); // Ensure container exists
+    if (!state.currentTurnContainer) return;
+
+    // Check if we already have a response element
+    if (!state.currentResponseElement) {
+        state.currentResponseElement = document.createElement('div');
+        state.currentResponseElement.className = 'response-block markdown-body';
+        state.currentTurnContainer.querySelector('.message-content').appendChild(state.currentResponseElement);
+    }
+
+    state.currentResponseText = (state.currentResponseText || '') + chunk;
+    renderMarkdownInto(state.currentResponseElement, state.currentResponseText);
+    agentScroll();
 }
 
 export function hideThinkingStatus() {
@@ -114,10 +173,95 @@ export function hideThinkingStatus() {
         clearInterval(state.thinkingTimerInterval);
         state.thinkingTimerInterval = null;
     }
+    // We do NOT remove the block anymore, as it might contain the reasoning trace.
+    // Instead we mark it as done/collapsed or finalize it in finalizeTurn.
+    // But if it has no content (no reasoning), we might want to remove it or change it to a simple "Thought" label.
     if (state.currentThinkingBlock) {
-        state.currentThinkingBlock.remove();
-        state.currentThinkingBlock = null;
+        // If no text was streamed and it's just a spinner, we might remove it 
+        // OR we wait for finalizeTurn to decide.
+        // For now, just stop the timer animation.
+        const dots = state.currentThinkingBlock.querySelector('.thinking-dots');
+        if (dots) dots.style.display = 'none';
+        
+        state.currentThinkingBlock.classList.remove('thinking');
+        state.currentThinkingBlock.classList.add('finished');
     }
+}
+
+export function finalizeTurn(thoughtData) {
+    hideThinkingStatus(); // Stop timer
+
+    const { reasoning, content, duration_seconds } = thoughtData || {};
+
+    // 1. Handle Reasoning
+    if (state.currentThinkingBlock) {
+        if (reasoning && reasoning.trim()) {
+            // Update with full reasoning text
+            state.currentThinkingText = reasoning;
+            const mdBody = state.currentThinkingBlock.querySelector('.thought-content .markdown-body');
+            renderMarkdownInto(mdBody, reasoning);
+            
+            // Update Header
+            const label = state.currentThinkingBlock.querySelector('.thinking-label');
+            if (label) label.textContent = 'Thought';
+            
+            const timer = state.currentThinkingBlock.querySelector('.thinking-timer');
+            if (timer && duration_seconds) {
+                timer.textContent = `for ${duration_seconds.toFixed(2)}s`;
+            } else if (timer) {
+                timer.textContent = '';
+            }
+            state.currentThinkingBlock.classList.add('has-content');
+        } else {
+            // No reasoning content: keep the header and timer for parity with previous behavior
+            const label = state.currentThinkingBlock.querySelector('.thinking-label');
+            if (label) label.textContent = 'Thought';
+
+            const timer = state.currentThinkingBlock.querySelector('.thinking-timer');
+            if (timer && duration_seconds) {
+                timer.textContent = `for ${duration_seconds.toFixed(2)}s`;
+            } else if (timer) {
+                timer.textContent = '';
+            }
+
+            state.currentThinkingBlock.classList.remove('has-content');
+            state.currentThinkingBlock.classList.remove('expanded');
+            const contentBlock = state.currentThinkingBlock.querySelector('.thought-content');
+            if (contentBlock) contentBlock.remove();
+        }
+    } else if (reasoning && reasoning.trim()) {
+        // If for some reason we didn't have a block (e.g. non-streamed history load), create one
+        appendThoughtBlock(reasoning, duration_seconds, true); // true for 'isReasoning'
+    }
+
+    // 2. Handle Content (Answer)
+    const resolvedContent = typeof content === 'string' ? content : '';
+    if (resolvedContent.trim()) {
+        if (!state.currentResponseElement) {
+            // Create if didn't exist (no stream or just started)
+            state.currentResponseElement = document.createElement('div');
+            state.currentResponseElement.className = 'response-block markdown-body';
+            state.currentTurnContainer.querySelector('.message-content').appendChild(state.currentResponseElement);
+        }
+
+        state.currentResponseText = resolvedContent;
+        renderMarkdownInto(state.currentResponseElement, resolvedContent);
+    } else if (state.currentResponseElement) {
+        const existing = state.currentResponseText || state.currentResponseElement.dataset.rawMarkdown || '';
+        if (existing.trim()) {
+            renderMarkdownInto(state.currentResponseElement, existing);
+        } else {
+            state.currentResponseElement.remove();
+        }
+    }
+
+    // Reset temporary state
+    state.currentThinkingText = '';
+    state.currentResponseText = '';
+    state.currentResponseElement = null;
+    state.currentThinkingBlock = null;
+    
+    agentScroll();
 }
 
 export function clearToolTimers() {
@@ -147,14 +291,15 @@ export function stopToolTimer(toolId) {
     state.toolTimerIntervals.delete(toolId);
 }
 
-export function appendThoughtBlock(text, durationInSeconds) {
+export function appendThoughtBlock(text, durationInSeconds, isReasoning = false) {
     createTurnContainer();
     if (!state.currentTurnContainer) return;
 
     const thoughtBlock = document.createElement('div');
-    thoughtBlock.className = 'thought-block';
+    thoughtBlock.className = `thought-block ${isReasoning ? 'thinking finished has-content' : ''}`;
 
     const durationText = durationInSeconds ? ` for ${durationInSeconds.toFixed(2)}s` : '';
+    const label = 'Thought';
 
     thoughtBlock.innerHTML = `
         <div class="thought-header">
@@ -167,12 +312,20 @@ export function appendThoughtBlock(text, durationInSeconds) {
                     <path d="M17 19h4"/>
                 </svg>
             </span>
-            <span>Thought${durationText}</span>
+            <span>${label}<span class="thinking-timer">${durationText}</span></span>
         </div>
-        <div class="thought-content">
+        <div class="thought-content" style="${isReasoning ? 'display: none;' : ''}">
             <div class="markdown-body"></div>
         </div>
     `;
+
+    if (isReasoning) {
+        thoughtBlock.querySelector('.thought-header').addEventListener('click', () => {
+            thoughtBlock.classList.toggle('expanded');
+            const content = thoughtBlock.querySelector('.thought-content');
+            content.style.display = thoughtBlock.classList.contains('expanded') ? 'block' : 'none';
+        });
+    }
 
     let displayText = text;
     if (typeof displayText !== 'string') {
@@ -194,10 +347,24 @@ export function appendThoughtBlock(text, durationInSeconds) {
     if (trimmedText) {
         renderMarkdownInto(thoughtBlock.querySelector('.markdown-body'), displayText);
     }
-    state.lastThoughtText = trimmedText;
-    state.lastThoughtElement = thoughtBlock;
-
+    // Only set these if it's the "answer" part, but appendThoughtBlock is vague now.
+    // We'll rely on finalizeTurn for the main flow. This is mostly for history loading or legacy.
+    
     state.currentTurnContainer.querySelector('.message-content').appendChild(thoughtBlock);
+    agentScroll();
+}
+
+export function appendResponseBlock(text) {
+    createTurnContainer();
+    if (!state.currentTurnContainer) return;
+
+    const resolvedText = typeof text === 'string' ? text : String(text ?? '');
+    if (!resolvedText.trim()) return;
+
+    const responseBlock = document.createElement('div');
+    responseBlock.className = 'response-block markdown-body';
+    renderMarkdownInto(responseBlock, resolvedText);
+    state.currentTurnContainer.querySelector('.message-content').appendChild(responseBlock);
     agentScroll();
 }
 

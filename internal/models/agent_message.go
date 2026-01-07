@@ -5,6 +5,8 @@ type AgentMessageType string
 const (
 	AgentMessageTypeUserMessage         AgentMessageType = "user_message"
 	AgentMessageTypeStartThinking       AgentMessageType = "start_thinking"
+	AgentMessageTypeThinking            AgentMessageType = "thinking"
+	AgentMessageTypeStreamChunk         AgentMessageType = "stream_chunk"
 	AgentMessageTypeThought             AgentMessageType = "thought"
 	AgentMessageTypeExecutingToolStart  AgentMessageType = "executing_tool_start"
 	AgentMessageTypeExecutingToolFinish AgentMessageType = "executing_tool_finish"
@@ -30,7 +32,24 @@ func (m AgentStartThinking) GetType() AgentMessageType {
 	return AgentMessageTypeStartThinking
 }
 
+type AgentThinking struct {
+	Content string `json:"content"`
+}
+
+func (m AgentThinking) GetType() AgentMessageType {
+	return AgentMessageTypeThinking
+}
+
+type AgentStreamChunk struct {
+	Content string `json:"content"`
+}
+
+func (m AgentStreamChunk) GetType() AgentMessageType {
+	return AgentMessageTypeStreamChunk
+}
+
 type AgentThought struct {
+	Reasoning       string  `json:"reasoning,omitempty"`
 	Content         string  `json:"content"`
 	DurationSeconds float64 `json:"duration_seconds,omitempty"`
 }

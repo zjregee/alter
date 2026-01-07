@@ -44,8 +44,18 @@ func (a *App) AgentChat(threadID string, userInput string) error {
 			switch m := msg.(type) {
 			case models.AgentStartThinking:
 				content = ""
+			case models.AgentThinking:
+				content = m.Content
+			case models.AgentStreamChunk:
+				content = m.Content
 			case models.AgentThought:
-				content = formatThreadMessage(m.Content)
+				formatted := models.AgentThought{
+					Reasoning:       formatThreadMessage(m.Reasoning),
+					Content:         formatThreadMessage(m.Content),
+					DurationSeconds: m.DurationSeconds,
+				}
+				payload, _ := json.Marshal(formatted)
+				content = string(payload)
 			case models.AgentExecutingToolStart:
 				payload, _ := json.Marshal(m)
 				content = string(payload)
@@ -123,8 +133,18 @@ func (a *App) EditAndResendMessage(threadID string, userInput string, messageInd
 			switch m := msg.(type) {
 			case models.AgentStartThinking:
 				content = ""
+			case models.AgentThinking:
+				content = m.Content
+			case models.AgentStreamChunk:
+				content = m.Content
 			case models.AgentThought:
-				content = formatThreadMessage(m.Content)
+				formatted := models.AgentThought{
+					Reasoning:       formatThreadMessage(m.Reasoning),
+					Content:         formatThreadMessage(m.Content),
+					DurationSeconds: m.DurationSeconds,
+				}
+				payload, _ := json.Marshal(formatted)
+				content = string(payload)
 			case models.AgentExecutingToolStart:
 				payload, _ := json.Marshal(m)
 				content = string(payload)
@@ -194,8 +214,18 @@ func (a *App) RegenerateLastResponse(threadID string) error {
 			switch m := msg.(type) {
 			case models.AgentStartThinking:
 				content = ""
+			case models.AgentThinking:
+				content = m.Content
+			case models.AgentStreamChunk:
+				content = m.Content
 			case models.AgentThought:
-				content = formatThreadMessage(m.Content)
+				formatted := models.AgentThought{
+					Reasoning:       formatThreadMessage(m.Reasoning),
+					Content:         formatThreadMessage(m.Content),
+					DurationSeconds: m.DurationSeconds,
+				}
+				payload, _ := json.Marshal(formatted)
+				content = string(payload)
 			case models.AgentExecutingToolStart:
 				payload, _ := json.Marshal(m)
 				content = string(payload)

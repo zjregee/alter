@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -320,6 +321,10 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 		msgChan <- event
 	}
 
+	sendOnly := func(event models.AgentMessage) {
+		msgChan <- event
+	}
+
 	assistantTurn := &models.ThreadMessageTurn{
 		Role:   schema.Assistant,
 		Events: assistantEvents,
@@ -364,7 +369,16 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 		thinkingStartedAt := time.Now()
 		sendAndCollect(models.AgentStartThinking{})
 
-		response, err := a.generate(ctx)
+		var contentBuilder strings.Builder
+		response, err := a.generate(ctx,
+			func(chunk string) {
+				sendOnly(models.AgentThinking{Content: chunk})
+			},
+			func(chunk string) {
+				contentBuilder.WriteString(chunk)
+				sendOnly(models.AgentStreamChunk{Content: chunk})
+			},
+		)
 		thinkingDuration := time.Since(thinkingStartedAt).Seconds()
 		totalThinkingTime += thinkingDuration
 
@@ -389,7 +403,11 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 			recordSpanError(runSpan, err)
 			return
 		}
-
+		if response != nil {
+			if response.Content == "" {
+				response.Content = contentBuilder.String()
+			}
+		}
 		if response.ResponseMeta != nil && response.ResponseMeta.Usage != nil {
 			usage := response.ResponseMeta.Usage
 			a.stats.Usage.PromptTokens += usage.PromptTokens
@@ -413,8 +431,9 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 		}
 
 		durationSeconds := time.Since(thinkingStartedAt).Seconds()
-		if response.Content != "" {
+		if response.Content != "" || response.ReasoningContent != "" {
 			sendAndCollect(models.AgentThought{
+				Reasoning:       response.ReasoningContent,
 				Content:         response.Content,
 				DurationSeconds: thinkingDuration,
 			})
@@ -423,6 +442,7 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 					attribute.Int("iteration", iterations),
 					attribute.Float64("thinking_duration_seconds", thinkingDuration),
 					attribute.Int("thought_length", len(response.Content)),
+					attribute.Int("reasoning_length", len(response.ReasoningContent)),
 				))
 			}
 		} else if len(response.ToolCalls) > 0 {
@@ -564,7 +584,7 @@ func (a *Agent) waitForNextTurn() {
 	a.stats.LastRequestTime = time.Now()
 }
 
-func (a *Agent) generate(ctx context.Context) (*schema.Message, error) {
+func (a *Agent) generate(ctx context.Context, onThinking func(string), onContent func(string)) (*schema.Message, error) {
 	var span trace.Span
 	if isTelemetryEnabled() {
 		tracer := otel.Tracer("alter/agent")
@@ -578,43 +598,101 @@ func (a *Agent) generate(ctx context.Context) (*schema.Message, error) {
 
 	a.history = sanitizeHistory(a.config.WorkDir, a.history)
 
-	model, err := getModel(ctx, a.config.ModelID)
+	cm, err := getModel(ctx, a.config.ModelID)
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, err
 	}
 
-	modelWithTools, err := model.WithTools(a.tools)
+	modelWithTools, err := cm.WithTools(a.tools)
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, err
 	}
 
-	response, err := modelWithTools.Generate(ctx, a.history)
+	stream, err := modelWithTools.Stream(ctx, a.history)
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, err
 	}
+	defer stream.Close()
 
-	if span != nil && response != nil {
+	var finalResponse *schema.Message
+	var contentBuilder strings.Builder
+	var reasoningBuilder strings.Builder
+	var allToolCalls []schema.ToolCall
+
+	// Initialize a base response structure to ensure we return something even if stream is empty or weird
+	finalResponse = &schema.Message{
+		Role: schema.Assistant,
+	}
+
+	for {
+		chunk, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			recordSpanError(span, err)
+			return nil, err
+		}
+
+		// Some providers might send the same text in both fields or use them interchangeably in error.
+		// We prioritize Content if both are present and identical.
+		if chunk.ReasoningContent != "" && chunk.ReasoningContent == chunk.Content {
+			chunk.ReasoningContent = ""
+		}
+
+		if chunk.ReasoningContent != "" {
+			reasoningBuilder.WriteString(chunk.ReasoningContent)
+			if onThinking != nil {
+				onThinking(chunk.ReasoningContent)
+			}
+		}
+
+		if chunk.Content != "" {
+			contentBuilder.WriteString(chunk.Content)
+			if onContent != nil {
+				onContent(chunk.Content)
+			}
+		}
+
+		// Capture metadata from the last chunk that has it, or accumulate logic if needed
+		if chunk.ResponseMeta != nil {
+			finalResponse.ResponseMeta = chunk.ResponseMeta
+		}
+
+		if len(chunk.ToolCalls) > 0 {
+			allToolCalls = append(allToolCalls, chunk.ToolCalls...)
+		}
+	}
+
+	finalResponse.Content = contentBuilder.String()
+	finalResponse.ReasoningContent = reasoningBuilder.String()
+	finalResponse.ToolCalls = allToolCalls
+
+	// Final safety check: if reasoning is identical to content, it's likely a provider error
+	if finalResponse.ReasoningContent != "" && finalResponse.ReasoningContent == finalResponse.Content {
+		finalResponse.ReasoningContent = ""
+	}
+
+	if span != nil {
 		span.SetAttributes(
 			attribute.Int("agent.history_length", len(a.history)),
-			attribute.Int("agent.tool_calls", len(response.ToolCalls)),
-			attribute.Int("agent.response_length", len(response.Content)),
+			attribute.Int("agent.tool_calls", len(finalResponse.ToolCalls)),
+			attribute.Int("agent.response_length", len(finalResponse.Content)),
 		)
-		if response.ResponseMeta != nil && response.ResponseMeta.Usage != nil {
+		if finalResponse.ResponseMeta != nil && finalResponse.ResponseMeta.Usage != nil {
 			span.SetAttributes(
-				attribute.Int("llm.prompt_tokens", response.ResponseMeta.Usage.PromptTokens),
-				attribute.Int("llm.completion_tokens", response.ResponseMeta.Usage.CompletionTokens),
-				attribute.Int("llm.total_tokens", response.ResponseMeta.Usage.PromptTokens+response.ResponseMeta.Usage.CompletionTokens),
+				attribute.Int("llm.prompt_tokens", finalResponse.ResponseMeta.Usage.PromptTokens),
+				attribute.Int("llm.completion_tokens", finalResponse.ResponseMeta.Usage.CompletionTokens),
+				attribute.Int("llm.total_tokens", finalResponse.ResponseMeta.Usage.PromptTokens+finalResponse.ResponseMeta.Usage.CompletionTokens),
 			)
 		}
 		span.SetStatus(codes.Ok, "generation successful")
 	}
-	if response == nil {
-		return nil, fmt.Errorf("model returned nil response")
-	}
-	return response, nil
+
+	return finalResponse, nil
 }
 
 func (a *Agent) invokeTool(ctx context.Context, toolCall schema.ToolCall) (string, error) {

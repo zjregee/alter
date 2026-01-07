@@ -3,10 +3,10 @@ module github.com/zjregee/alter
 go 1.24.1
 
 require (
-	github.com/cloudwego/eino v0.7.17
-	github.com/cloudwego/eino-ext/components/model/deepseek v0.1.1
-	github.com/cloudwego/eino-ext/components/model/openai v0.1.6
-	github.com/cloudwego/eino-ext/components/tool/duckduckgo/v2 v2.0.0-20251229121631-716047332ba5
+	github.com/cloudwego/eino v0.7.18
+	github.com/cloudwego/eino-ext/components/model/deepseek v0.1.2
+	github.com/cloudwego/eino-ext/components/model/openai v0.1.7
+	github.com/cloudwego/eino-ext/components/tool/duckduckgo/v2 v2.0.0-20260106124928-46864ab11d94
 	github.com/cloudwego/eino-ext/components/tool/mcp v0.0.8
 	github.com/google/uuid v1.6.0
 	github.com/mark3labs/mcp-go v0.43.2
@@ -34,7 +34,7 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/cloudwego/eino-ext/libs/acl/openai v0.1.10 // indirect
+	github.com/cloudwego/eino-ext/libs/acl/openai v0.1.12 // indirect
 	github.com/cohesion-org/deepseek-go v1.3.2 // indirect
 	github.com/corpix/uarand v0.2.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

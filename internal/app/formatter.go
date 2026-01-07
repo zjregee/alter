@@ -51,6 +51,7 @@ func formatThreadEvent(event *models.MarshaledThreadMessage) *models.MarshaledTh
 		if err := json.Unmarshal(event.Content, &msg); err != nil {
 			return formatted
 		}
+		msg.Reasoning = formatThreadMessage(msg.Reasoning)
 		msg.Content = formatThreadMessage(msg.Content)
 		if content, err := json.Marshal(msg); err == nil {
 			formatted.Content = content

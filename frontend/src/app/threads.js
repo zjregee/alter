@@ -2,7 +2,7 @@ import { dom } from './dom.js';
 import { state } from './state.js';
 import { getEventDurationSeconds, getEventText, safeParseJSON } from './utils.js';
 import { appendTurnActions } from './chat/actions.js';
-import { createTurnContainer, addUserMessage, appendStatusMessage, appendThoughtBlock, appendToolCall, hideThinkingStatus, setChatEmptyState, showThinkingStatus, updateToolCall } from './chat/turns.js';
+import { createTurnContainer, addUserMessage, appendResponseBlock, appendStatusMessage, appendThoughtBlock, appendToolCall, hideThinkingStatus, setChatEmptyState, showThinkingStatus, updateToolCall } from './chat/turns.js';
 import { setTurnRegenerateContext } from './chat/regenerate.js';
 import { setProcessingState } from './chat/processing.js';
 import { syncCurrentThreadModel } from './models.js';
@@ -83,7 +83,21 @@ export async function loadThreadMessages(threadID) {
                         case 'thought': {
                             const payload = safeParseJSON(event.content);
                             const duration = getEventDurationSeconds(payload);
-                            appendThoughtBlock(getEventText(event.content), duration);
+                            if (payload && typeof payload === 'object') {
+                                const reasoning = typeof payload.reasoning === 'string' ? payload.reasoning : '';
+                                const content = typeof payload.content === 'string' ? payload.content : '';
+                                if (reasoning.trim()) {
+                                    appendThoughtBlock(reasoning, duration, true);
+                                }
+                                if (content.trim()) {
+                                    appendResponseBlock(content);
+                                }
+                            } else {
+                                const legacyText = getEventText(event.content);
+                                if (legacyText && legacyText.trim()) {
+                                    appendResponseBlock(legacyText);
+                                }
+                            }
                             state.lastThinkingDuration = typeof duration === 'number' ? duration : null;
                             break;
                         }

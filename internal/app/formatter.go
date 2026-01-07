@@ -46,6 +46,15 @@ func formatThreadEvent(event *models.MarshaledThreadMessage) *models.MarshaledTh
 	}
 
 	switch event.Type {
+	case models.AgentMessageTypeUserMessage:
+		var msg models.UserMessage
+		if err := json.Unmarshal(event.Content, &msg); err != nil {
+			return formatted
+		}
+		msg.Content = formatThreadMessage(msg.Content)
+		if content, err := json.Marshal(msg); err == nil {
+			formatted.Content = content
+		}
 	case models.AgentMessageTypeThought:
 		var msg models.AgentThought
 		if err := json.Unmarshal(event.Content, &msg); err != nil {

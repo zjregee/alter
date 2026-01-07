@@ -71,18 +71,52 @@ export function formatFeedTimestamp(timestamp) {
     });
 }
 
+export function formatMessage(content) {
+    if (!content || typeof content !== 'string') {
+        return content;
+    }
+
+    // Ported from internal/app/formatter.go
+    // Note: JS requires 'u' flag for Unicode property escapes like \p{Unified_Ideograph}
+    // \p{Unified_Ideograph} is the JS equivalent of \p{Han}
+    let formatted = content;
+    
+    // hanToLatinMidPunct: ([\p{Han}])([-/]+)([A-Za-z0-9]) -> $1 $2 $3
+    formatted = formatted.replace(/(\p{Unified_Ideograph})([-/]+)([A-Za-z0-9])/gu, '$1 $2 $3');
+    // latinToHanMidPunct: ([A-Za-z0-9])([-/]+)([\p{Han}]) -> $1 $2 $3
+    formatted = formatted.replace(/([A-Za-z0-9])([-/]+)(\p{Unified_Ideograph})/gu, '$1 $2 $3');
+    
+    // hanToLatinOpenPunct: ([\p{Han}])([\(\[\{'""]+)([A-Za-z0-9]) -> $1 $2$3
+    formatted = formatted.replace(/(\p{Unified_Ideograph})([([{'""]+)([A-Za-z0-9])/gu, '$1 $2$3');
+    // latinToHanOpenPunct: ([A-Za-z0-9])([\(\[\{'""]+)([\p{Han}]) -> $1 $2$3
+    formatted = formatted.replace(/([A-Za-z0-9])([([{'""]+)(\p{Unified_Ideograph})/gu, '$1 $2$3');
+    
+    // hanToLatinPunct: ([\p{Han}])([,.;:!?\)\]\}]+)([A-Za-z0-9]) -> $1$2 $3
+    formatted = formatted.replace(/(\p{Unified_Ideograph})([,.;:!?)}]+)([A-Za-z0-9])/gu, '$1$2 $3');
+    // latinToHanPunct: ([A-Za-z0-9])([,.;:!?\)\]\}]+)([\p{Han}]) -> $1$2 $3
+    formatted = formatted.replace(/([A-Za-z0-9])([,.;:!?)}]+)(\p{Unified_Ideograph})/gu, '$1$2 $3');
+    
+    // hanToLatin: ([\p{Han}])([A-Za-z0-9]) -> $1 $2
+    formatted = formatted.replace(/(\p{Unified_Ideograph})([A-Za-z0-9])/gu, '$1 $2');
+    // latinToHan: ([A-Za-z0-9])([\p{Han}]) -> $1 $2
+    formatted = formatted.replace(/([A-Za-z0-9])(\p{Unified_Ideograph})/gu, '$1 $2');
+
+    return formatted;
+}
+
 export function renderMarkdownInto(target, content) {
     if (!target) return;
     if (!content) {
         target.textContent = '';
         return;
     }
+    const formattedContent = formatMessage(content);
     target.dataset.rawMarkdown = typeof content === 'string' ? content : String(content);
     if (window.marked?.parse && window.DOMPurify?.sanitize) {
-        const html = window.marked.parse(content);
+        const html = window.marked.parse(formattedContent);
         const safeHtml = window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
         target.innerHTML = safeHtml;
         return;
     }
-    target.textContent = content;
+    target.textContent = formattedContent;
 }

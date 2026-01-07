@@ -19,6 +19,10 @@ export function handleCancel() {
     state.lastThoughtText = '';
     state.lastThoughtElement = null;
     state.lastThinkingDuration = null;
+    state.pendingStreamBuffer = '';
+    state.isStreamingLoopActive = false;
+    state.pendingThinkingBuffer = '';
+    state.isThinkingLoopActive = false;
 }
 
 export function handleError(errorMessage) {
@@ -36,4 +40,8 @@ export function handleError(errorMessage) {
     state.lastThoughtText = '';
     state.lastThoughtElement = null;
     state.lastThinkingDuration = null;
+    state.pendingStreamBuffer = '';
+    state.isStreamingLoopActive = false;
+    state.pendingThinkingBuffer = '';
+    state.isThinkingLoopActive = false;
 }

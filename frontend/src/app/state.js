@@ -19,6 +19,12 @@ export const state = {
     lastThoughtText: '',
     lastThoughtElement: null,
     lastThinkingDuration: null,
+    // Typewriter effect state
+    pendingStreamBuffer: '',
+    isStreamingLoopActive: false,
+    pendingThinkingBuffer: '',
+    isThinkingLoopActive: false,
+    
     lastAssistantTurnIndex: -1,
     cancelHandled: false,
     cancelVisible: false,

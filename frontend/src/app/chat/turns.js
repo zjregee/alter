@@ -1,6 +1,6 @@
 import { dom } from '../dom.js';
 import { state } from '../state.js';
-import { formatToolArgs, getEventDurationSeconds, renderMarkdownInto } from '../utils.js';
+import { formatMessage, formatToolArgs, getEventDurationSeconds, renderMarkdownInto } from '../utils.js';
 import { setTurnRegenerateContext } from './regenerate.js';
 
 export function agentScroll() {
@@ -89,22 +89,24 @@ export function showThinkingStatus() {
     const header = document.createElement('div');
     header.className = 'thought-header';
     header.innerHTML = `
-        <span class="tool-icon">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="m12 3-1.9 4.8-4.8 1.9 4.8 1.9 1.9 4.8 1.9-4.8 4.8-1.9-4.8-1.9L12 3z"/>
-                <path d="M5 3v4"/>
-                <path d="M19 17v4"/>
-                <path d="M3 5h4"/>
-                <path d="M17 19h4"/>
-            </svg>
+        <span class="thought-toggle">
+            <span class="tool-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="m12 3-1.9 4.8-4.8 1.9 4.8 1.9 1.9 4.8 1.9-4.8 4.8-1.9-4.8-1.9L12 3z"/>
+                    <path d="M5 3v4"/>
+                    <path d="M19 17v4"/>
+                    <path d="M3 5h4"/>
+                    <path d="M17 19h4"/>
+                </svg>
+            </span>
+            <span class="thinking-label">Thinking</span>
+            <span class="thinking-dots">
+                <span class="dot">.</span>
+                <span class="dot">.</span>
+                <span class="dot">.</span>
+            </span>
+            <span class="thinking-timer">0.0s</span>
         </span>
-        <span class="thinking-label">Thinking</span>
-        <span class="thinking-dots">
-            <span class="dot">.</span>
-            <span class="dot">.</span>
-            <span class="dot">.</span>
-        </span>
-        <span class="thinking-timer">0.0s</span>
     `;
     
     // Content area for reasoning stream
@@ -114,7 +116,8 @@ export function showThinkingStatus() {
     content.innerHTML = '<div class="markdown-body"></div>';
 
     // Click to toggle
-    header.addEventListener('click', () => {
+    header.querySelector('.thought-toggle').addEventListener('click', (e) => {
+        e.stopPropagation();
         thinkingBlock.classList.toggle('expanded');
         content.style.display = thinkingBlock.classList.contains('expanded') ? 'block' : 'none';
     });
@@ -136,6 +139,37 @@ export function showThinkingStatus() {
 export function updateThinkingChunk(chunk) {
     if (!state.currentThinkingBlock) return;
     
+    state.pendingThinkingBuffer += chunk;
+    if (!state.isThinkingLoopActive) {
+        processThinkingBuffer();
+    }
+}
+
+function processThinkingBuffer() {
+    if (!state.currentThinkingBlock || !state.pendingThinkingBuffer) {
+        state.isThinkingLoopActive = false;
+        return;
+    }
+
+    state.isThinkingLoopActive = true;
+
+    // Calculate chars to render (Typewriter Effect)
+    const bufferLen = state.pendingThinkingBuffer.length;
+    let charsToRender = 1;
+
+    if (bufferLen > 100) {
+        charsToRender = 10;
+    } else if (bufferLen > 50) {
+        charsToRender = 5;
+    } else if (bufferLen > 20) {
+        charsToRender = 3;
+    } else if (bufferLen > 5) {
+        charsToRender = 2;
+    }
+
+    const chunk = state.pendingThinkingBuffer.slice(0, charsToRender);
+    state.pendingThinkingBuffer = state.pendingThinkingBuffer.slice(charsToRender);
+
     state.currentThinkingText = (state.currentThinkingText || '') + chunk;
     
     const contentDiv = state.currentThinkingBlock.querySelector('.thought-content');
@@ -146,10 +180,48 @@ export function updateThinkingChunk(chunk) {
         state.currentThinkingBlock.classList.add('has-content');
         const label = state.currentThinkingBlock.querySelector('.thinking-label');
         if (label) label.textContent = 'Thinking';
+        expandThinkingBlock();
     }
 
     renderMarkdownInto(mdBody, state.currentThinkingText);
     agentScroll();
+
+    requestAnimationFrame(processThinkingBuffer);
+}
+
+export function flushThinkingBuffer() {
+    if (state.pendingThinkingBuffer && state.currentThinkingBlock) {
+        state.currentThinkingText = (state.currentThinkingText || '') + state.pendingThinkingBuffer;
+        state.pendingThinkingBuffer = '';
+        
+        const contentDiv = state.currentThinkingBlock.querySelector('.thought-content');
+        const mdBody = contentDiv.querySelector('.markdown-body');
+        
+        if (state.currentThinkingText.trim() && !state.currentThinkingBlock.classList.contains('has-content')) {
+            state.currentThinkingBlock.classList.add('has-content');
+            const label = state.currentThinkingBlock.querySelector('.thinking-label');
+            if (label) label.textContent = 'Thinking';
+            expandThinkingBlock();
+        }
+
+        renderMarkdownInto(mdBody, state.currentThinkingText);
+    }
+    state.isThinkingLoopActive = false;
+    agentScroll();
+}
+
+export function expandThinkingBlock() {
+    if (!state.currentThinkingBlock) return;
+    state.currentThinkingBlock.classList.add('expanded');
+    const content = state.currentThinkingBlock.querySelector('.thought-content');
+    if (content) content.style.display = 'block';
+}
+
+export function collapseThinkingBlock() {
+    if (!state.currentThinkingBlock) return;
+    state.currentThinkingBlock.classList.remove('expanded');
+    const content = state.currentThinkingBlock.querySelector('.thought-content');
+    if (content) content.style.display = 'none';
 }
 
 export function updateStreamChunk(chunk) {
@@ -163,8 +235,54 @@ export function updateStreamChunk(chunk) {
         state.currentTurnContainer.querySelector('.message-content').appendChild(state.currentResponseElement);
     }
 
+    state.pendingStreamBuffer += chunk;
+    if (!state.isStreamingLoopActive) {
+        processStreamBuffer();
+    }
+}
+
+function processStreamBuffer() {
+    if (!state.pendingStreamBuffer) {
+        state.isStreamingLoopActive = false;
+        return;
+    }
+
+    state.isStreamingLoopActive = true;
+
+    // Calculate chars to render (Typewriter Effect)
+    // Dynamic speed: if buffer is large, speed up to catch up
+    const bufferLen = state.pendingStreamBuffer.length;
+    let charsToRender = 1;
+
+    if (bufferLen > 100) {
+        charsToRender = 10;
+    } else if (bufferLen > 50) {
+        charsToRender = 5;
+    } else if (bufferLen > 20) {
+        charsToRender = 3;
+    } else if (bufferLen > 5) {
+        charsToRender = 2;
+    }
+
+    const chunk = state.pendingStreamBuffer.slice(0, charsToRender);
+    state.pendingStreamBuffer = state.pendingStreamBuffer.slice(charsToRender);
+
     state.currentResponseText = (state.currentResponseText || '') + chunk;
     renderMarkdownInto(state.currentResponseElement, state.currentResponseText);
+    agentScroll();
+
+    requestAnimationFrame(processStreamBuffer);
+}
+
+export function flushStreamBuffer() {
+    if (state.pendingStreamBuffer) {
+        state.currentResponseText = (state.currentResponseText || '') + state.pendingStreamBuffer;
+        state.pendingStreamBuffer = '';
+        if (state.currentResponseElement) {
+            renderMarkdownInto(state.currentResponseElement, state.currentResponseText);
+        }
+    }
+    state.isStreamingLoopActive = false;
     agentScroll();
 }
 
@@ -190,6 +308,10 @@ export function hideThinkingStatus() {
 
 export function finalizeTurn(thoughtData) {
     hideThinkingStatus(); // Stop timer
+
+    // Flush remaining buffer immediately
+    flushStreamBuffer();
+    flushThinkingBuffer();
 
     const { reasoning, content, duration_seconds } = thoughtData || {};
 
@@ -260,6 +382,10 @@ export function finalizeTurn(thoughtData) {
     state.currentResponseText = '';
     state.currentResponseElement = null;
     state.currentThinkingBlock = null;
+    state.pendingStreamBuffer = '';
+    state.isStreamingLoopActive = false;
+    state.pendingThinkingBuffer = '';
+    state.isThinkingLoopActive = false;
     
     agentScroll();
 }
@@ -303,16 +429,18 @@ export function appendThoughtBlock(text, durationInSeconds, isReasoning = false)
 
     thoughtBlock.innerHTML = `
         <div class="thought-header">
-            <span class="tool-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="m12 3-1.9 4.8-4.8 1.9 4.8 1.9 1.9 4.8 1.9-4.8 4.8-1.9-4.8-1.9L12 3z"/>
-                    <path d="M5 3v4"/>
-                    <path d="M19 17v4"/>
-                    <path d="M3 5h4"/>
-                    <path d="M17 19h4"/>
-                </svg>
+            <span class="thought-toggle">
+                <span class="tool-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="m12 3-1.9 4.8-4.8 1.9 4.8 1.9 1.9 4.8 1.9-4.8 4.8-1.9-4.8-1.9L12 3z"/>
+                        <path d="M5 3v4"/>
+                        <path d="M19 17v4"/>
+                        <path d="M3 5h4"/>
+                        <path d="M17 19h4"/>
+                    </svg>
+                </span>
+                <span>${label}<span class="thinking-timer">${durationText}</span></span>
             </span>
-            <span>${label}<span class="thinking-timer">${durationText}</span></span>
         </div>
         <div class="thought-content" style="${isReasoning ? 'display: none;' : ''}">
             <div class="markdown-body"></div>
@@ -320,7 +448,8 @@ export function appendThoughtBlock(text, durationInSeconds, isReasoning = false)
     `;
 
     if (isReasoning) {
-        thoughtBlock.querySelector('.thought-header').addEventListener('click', () => {
+        thoughtBlock.querySelector('.thought-toggle').addEventListener('click', (e) => {
+            e.stopPropagation();
             thoughtBlock.classList.toggle('expanded');
             const content = thoughtBlock.querySelector('.thought-content');
             content.style.display = thoughtBlock.classList.contains('expanded') ? 'block' : 'none';
@@ -387,7 +516,7 @@ export function addUserMessage(text, scrollToBottom = true) {
             displayText = JSON.stringify(displayText, null, 2);
         }
     }
-    p.textContent = displayText;
+    p.textContent = formatMessage(displayText);
 
     messageContent.appendChild(p);
     messageGroup.appendChild(messageContent);

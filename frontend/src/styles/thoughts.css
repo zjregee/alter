@@ -1,4 +1,4 @@
-/* New styles for thought blocks */
+/* Styles for thought blocks */
 .thought-block {
     margin: 4px 0;
     padding-bottom: 0;
@@ -17,11 +17,16 @@
     transition: color 0.2s;
 }
 
-.thought-block.has-content .thought-header {
+.thought-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     cursor: pointer;
+    border-radius: 4px;
+    transition: color 0.2s;
 }
 
-.thought-block.has-content .thought-header:hover {
+.thought-block.has-content .thought-toggle:hover {
     color: var(--text-secondary);
 }
 
@@ -36,46 +41,35 @@
 }
 
 .thought-content {
-    padding: 8px 12px;
-    margin: 4px 0 12px 6px;
-    border-left: 2px solid var(--panel-border);
-    background-color: rgba(255, 255, 255, 0.02);
-    border-radius: 0 4px 4px 0;
+    /* Timeline style implementation */
+    padding: 8px 16px 8px 16px;
+    margin: 4px 0 12px 0; /* Align with the very left edge of the message content */
+    border-left: 1.5px solid var(--sidebar-border);
+    opacity: 0.85;
 }
 
 .thought-content .markdown-body {
     font-size: 12px;
-    color: var(--text-secondary);
+    color: var(--text-tertiary); /* Even softer color */
 }
 
 .thought-content p {
-    color: var(--text-secondary); /* Softer color for thinking process */
+    color: var(--text-tertiary);
     line-height: 1.6;
     font-size: 12px;
     white-space: pre-wrap;
     word-wrap: break-word;
 }
 
-/* Add an arrow indicator if needed, or rely on the UI cue. 
-   Let's add a small indicator using ::after or a separate element if we modified the JS.
-   Since JS didn't add an arrow element explicitly, I'll rely on the header styling or add a pseudo-element.
-*/
-.thought-block.has-content .thought-header::after {
-    content: '';
-    display: inline-block;
-    width: 0; 
-    height: 0; 
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 4px solid currentColor;
-    margin-left: auto;
-    opacity: 0.5;
-    transition: transform 0.2s;
-    transform: rotate(-90deg); /* Pointing right (collapsed) */
+.thought-content code {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-tertiary);
+    border-color: rgba(255, 255, 255, 0.05);
 }
 
-.thought-block.has-content.expanded .thought-header::after {
-    transform: rotate(0deg); /* Pointing down (expanded) */
+.thought-content pre {
+    background: rgba(0, 0, 0, 0.1);
+    border-color: rgba(255, 255, 255, 0.05);
 }
 
 .message-content .thought-block + .tool-call {
@@ -104,4 +98,15 @@
 @keyframes dot-opacity {
   0%, 60%, 100% { opacity: 0; }
   30% { opacity: 1; }
+}
+
+/* Custom spacing for thinking status elements */
+.thinking-status > .tool-icon {
+    margin-right: 7px;
+}
+.thinking-status > .thinking-text-label {
+    margin-right: 3px;
+}
+.thinking-status > .thinking-dots {
+    margin-right: 3px;
 }

@@ -1,7 +1,7 @@
 import { dom } from '../dom.js';
 import { state } from '../state.js';
 import { getEventText, normalizeEventContent, safeParseJSON } from '../utils.js';
-import { appendThoughtBlock, appendToolCall, clearToolTimers, finalizeTurn, hideThinkingStatus, showThinkingStatus, updateStreamChunk, updateThinkingChunk, updateToolCall } from './turns.js';
+import { appendThoughtBlock, appendToolCall, clearToolTimers, finalizeTurn, hideThinkingStatus, showThinkingStatus, updateStreamChunk, updateThinkingChunk, updateToolCall, expandThinkingBlock, collapseThinkingBlock, flushStreamBuffer } from './turns.js';
 import { appendTurnActions } from './actions.js';
 import { handleCancel, handleError } from './feedback.js';
 import { setCancelVisibility, setProcessingState } from './processing.js';
@@ -46,11 +46,13 @@ export function processAgentMessage(data) {
             break;
         case 'stream_chunk':
             {
+                collapseThinkingBlock();
                 const text = normalizeEventContent(content);
                 updateStreamChunk(typeof text === 'string' ? text : String(text ?? ''));
             }
             break;
         case 'thought': {
+            collapseThinkingBlock();
             const payload = safeParseJSON(content);
             finalizeTurn(payload);
             state.lastThinkingDuration = payload?.duration_seconds;
@@ -79,6 +81,7 @@ export function processAgentMessage(data) {
 }
 
 function handleFinalResponse() {
+    flushStreamBuffer();
     hideThinkingStatus();
     clearToolTimers();
     if (state.currentTurnContainer) {

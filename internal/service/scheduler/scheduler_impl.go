@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/zjregee/alter/internal/models"
@@ -13,7 +14,7 @@ import (
 )
 
 const (
-	schedulerTickInterval = 60 * time.Second
+	schedulerTickInterval = 1 * time.Second
 )
 
 func (s *Scheduler) run() {
@@ -44,27 +45,45 @@ func (s *Scheduler) processSchedules(now time.Time) {
 			s.mu.Unlock()
 			return
 		}
-		item = heap.Pop(s.queue).(*scheduleQueueItem)
-		s.mu.Unlock()
 
-		s.wg.Add(1)
-		go s.executeSchedule(item.schedule)
-
-		nextRun, err := calculateNextRunFromNow(item.schedule)
+		nextRun, err := calculateNextRun(item.schedule, now)
 		if err != nil {
-			utils.GetLogger().Printf("Failed to calculate next run for schedule %s: %v", item.schedule.ID, err)
+			utils.GetLogger().Printf("Critical: Failed to calculate next run for schedule %s, disabling: %v", item.schedule.ID, err)
+
+			heap.Remove(s.queue, item.index)
+			s.mu.Unlock()
+
+			item.schedule.Enabled = false
+			if err := storage.SaveSchedule(item.schedule); err != nil {
+				utils.GetLogger().Printf("Failed to save disabled schedule %s: %v", item.schedule.ID, err)
+			}
 			continue
 		}
 
+		item.schedule.LastRunAt = timeToString(time.Now())
 		item.schedule.NextRunAt = timeToString(nextRun)
 		item.nextRun = nextRun
-		s.mu.Lock()
-		heap.Push(s.queue, item)
+		heap.Fix(s.queue, item.index)
+
+		scheduleCopy := *item.schedule
+
+		currentSchedulePtr := item.schedule
+
 		s.mu.Unlock()
 
-		if err := storage.SaveSchedule(item.schedule); err != nil {
-			utils.GetLogger().Printf("Failed to save schedule %s: %v", item.schedule.ID, err)
-			continue
+		s.wg.Add(1)
+		go s.executeSchedule(&scheduleCopy)
+
+		s.mu.Lock()
+		storedItem, exists := s.queue.index[item.schedule.ID]
+		shouldSave := exists && storedItem == item && item.schedule == currentSchedulePtr
+		s.mu.Unlock()
+
+		if shouldSave {
+			if err := storage.SaveSchedule(&scheduleCopy); err != nil {
+				utils.GetLogger().Printf("Failed to save schedule %s: %v", item.schedule.ID, err)
+				continue
+			}
 		}
 	}
 }
@@ -94,10 +113,19 @@ func (s *Scheduler) executeSchedule(schedule *models.Schedule) {
 		s.activeMu.Unlock()
 	}()
 
+	s.activeMu.Lock()
 	startedAt := time.Now()
 	run.StartedAt = timeToString(startedAt)
+	run.Status = models.WorkflowStateRunning
+	s.activeMu.Unlock()
+
+	if err := storage.SaveScheduleRun(run); err != nil {
+		utils.GetLogger().Printf("Failed to save schedule run status Running: %v", err)
+	}
 
 	err := s.executeScheduleWithRetry(schedule, run)
+
+	s.activeMu.Lock()
 	if err != nil {
 		run.Status = models.WorkflowStateFailed
 		run.Error = err.Error()
@@ -107,12 +135,7 @@ func (s *Scheduler) executeSchedule(schedule *models.Schedule) {
 
 	now := time.Now()
 	run.EndedAt = timeToString(now)
-	schedule.LastRunAt = run.StartedAt
-
-	if err := storage.SaveSchedule(schedule); err != nil {
-		utils.GetLogger().Printf("Failed to save schedule %s: %v", schedule.ID, err)
-		return
-	}
+	s.activeMu.Unlock()
 
 	if err := storage.SaveScheduleRun(run); err != nil {
 		utils.GetLogger().Printf("Failed to save schedule run %s: %v", run.ID, err)
@@ -127,9 +150,9 @@ func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *mod
 
 	var lastErr error
 
-	for attempt := 0; attempt <= maxRetries; attempt += 1 {
+	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
-			waitDuration := time.Duration(float64(retryInterval) * pow(backoff, float64(attempt-1)))
+			waitDuration := time.Duration(float64(retryInterval) * math.Pow(backoff, float64(attempt-1)))
 			utils.GetLogger().Printf("Retrying schedule %s (attempt %d/%d) after %v", schedule.ID, attempt, maxRetries, waitDuration)
 
 			select {
@@ -139,7 +162,9 @@ func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *mod
 			}
 		}
 
+		s.activeMu.Lock()
 		run.RetryCount = attempt
+		s.activeMu.Unlock()
 
 		wf := workflow.NewWorkflow(schedule.WorkflowConfig)
 
@@ -205,10 +230,14 @@ func (s *Scheduler) loadSchedules() error {
 			}
 		}
 
-		heap.Push(s.queue, &scheduleQueueItem{
-			schedule: schedule,
-			nextRun:  nextRun,
-		})
+		s.mu.Lock()
+		if _, exists := s.queue.index[schedule.ID]; !exists {
+			heap.Push(s.queue, &scheduleQueueItem{
+				schedule: schedule,
+				nextRun:  nextRun,
+			})
+		}
+		s.mu.Unlock()
 	}
 
 	return nil
@@ -237,6 +266,8 @@ func (s *Scheduler) syncSchedules() error {
 				utils.GetLogger().Printf("Failed to save new schedule %s: %v", id, err)
 			}
 		} else {
+			configChanged := dbSch.CronExpr != fileSch.CronExpr || dbSch.Timezone != fileSch.Timezone
+
 			dbSch.Name = fileSch.Name
 			dbSch.WorkflowConfig = fileSch.WorkflowConfig
 			dbSch.CronExpr = fileSch.CronExpr
@@ -246,9 +277,11 @@ func (s *Scheduler) syncSchedules() error {
 			dbSch.RetryBackoff = fileSch.RetryBackoff
 			dbSch.TimeoutSeconds = fileSch.TimeoutSeconds
 
-			nextRun, err := calculateNextRunFromNow(dbSch)
-			if err == nil {
-				dbSch.NextRunAt = timeToString(nextRun)
+			if configChanged {
+				nextRun, err := calculateNextRunFromNow(dbSch)
+				if err == nil {
+					dbSch.NextRunAt = timeToString(nextRun)
+				}
 			}
 
 			if err := storage.SaveSchedule(dbSch); err != nil {
@@ -270,13 +303,4 @@ func (s *Scheduler) syncSchedules() error {
 	}
 
 	return nil
-}
-
-func pow(base float64, exp float64) float64 {
-	result := 1.0
-	for i := 0; i < int(exp); i += 1 {
-		result *= base
-	}
-
-	return result
 }

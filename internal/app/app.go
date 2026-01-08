@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zjregee/alter/internal/service"
+	"github.com/zjregee/alter/internal/service/scheduler"
 	"github.com/zjregee/alter/internal/service/tools"
 	"github.com/zjregee/alter/internal/utils"
 )
@@ -29,6 +30,10 @@ func (a *App) Startup(ctx context.Context) {
 		panic(fmt.Sprintf("Failed to initialize agent service: %v", err))
 	}
 
+	if err := scheduler.GetScheduler().Start(ctx); err != nil {
+		utils.GetLogger().Printf("Warning: Failed to start scheduler: %v\n", err)
+	}
+
 	a.ctx = ctx
 	a.agentService = agentService
 	tools.StartMCPToolWarmup(ctx)
@@ -37,6 +42,10 @@ func (a *App) Startup(ctx context.Context) {
 func (a *App) Shutdown(ctx context.Context) {
 	shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
+	if err := scheduler.GetScheduler().Stop(); err != nil {
+		utils.GetLogger().Printf("Warning: Failed to stop scheduler: %v\n", err)
+	}
 
 	if err := service.ShutdownTelemetry(shutdownCtx); err != nil {
 		utils.GetLogger().Printf("Warning: Failed to shutdown telemetry: %v\n", err)

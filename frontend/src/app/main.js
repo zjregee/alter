@@ -1,6 +1,6 @@
 import { dom } from './dom.js';
 import { state } from './state.js';
-import { handleFeedItemPushed, setupFeedHandlers } from './feed.js';
+import { handleFeedItemPushed, setupFeedHandlers, loadFeedTopics, updateGlobalUnreadDot } from './feed.js';
 import { setupSidebarResizer } from './layout.js';
 import { setThreadRefresher, handleAgentMessage } from './chat/agent.js';
 import { setupActionMenuListeners } from './chat/actions.js';
@@ -44,6 +44,11 @@ export function initializeApp() {
         }
         dom.chatInput?.focus();
         setupViewSwitcher();
+
+        // Initialize feed unread status in background
+        loadFeedTopics().then(() => {
+            updateGlobalUnreadDot();
+        });
     });
 }
 

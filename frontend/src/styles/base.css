@@ -51,3 +51,46 @@ select {
     height: 100vh;
     width: 100vw;
 }
+
+/* Notification Dot */
+.dot {
+    width: 8px;
+    height: 8px;
+    background-color: #ff4d4f;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.view-btn {
+    position: relative;
+}
+
+.view-btn .dot {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    border: none;
+    width: 6px;
+    height: 6px;
+    display: none;
+}
+
+.view-btn.has-unread .dot {
+    display: block;
+}
+
+.feed-topic-item {
+    position: relative;
+}
+
+.feed-topic-item .dot {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: none;
+}
+
+.feed-topic-item.has-unread .dot {
+    display: block;
+}

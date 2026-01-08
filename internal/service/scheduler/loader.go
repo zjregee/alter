@@ -96,9 +96,17 @@ func parseWorkflowFile(path string) (*models.Schedule, error) {
 		return nil, nil
 	}
 
+	if _, err := cronParser.Parse(wf.Schedule.CronExpr); err != nil {
+		return nil, fmt.Errorf("invalid cron expression '%s': %w", wf.Schedule.CronExpr, err)
+	}
+
 	timezone := wf.Schedule.Timezone
 	if timezone == "" {
 		timezone = "Local"
+	}
+
+	if _, err := time.LoadLocation(timezone); err != nil {
+		return nil, fmt.Errorf("invalid timezone '%s': %w", timezone, err)
 	}
 
 	return &models.Schedule{

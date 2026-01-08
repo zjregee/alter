@@ -40,6 +40,7 @@ export const state = {
     turnRegenerateContext: new Map(),
     pendingAgentMessages: [],
     feedTopicsCache: [],
+    feedTopicsUnread: {}, // map of topic name -> unread count
     feedArticlesCache: [],
     currentFeedTopicId: '',
     feedTopicsLoading: false,

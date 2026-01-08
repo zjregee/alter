@@ -9,6 +9,7 @@ import (
 	"github.com/zjregee/alter/internal/models"
 	"github.com/zjregee/alter/internal/service/storage"
 	"github.com/zjregee/alter/internal/service/workflow"
+	"github.com/zjregee/alter/internal/utils"
 )
 
 var (
@@ -17,11 +18,6 @@ var (
 
 func init() {
 	instance = newScheduler()
-
-	ctx := context.Background()
-	if err := instance.start(ctx); err != nil {
-		panic(err)
-	}
 }
 
 type Scheduler struct {
@@ -51,7 +47,7 @@ func GetScheduler() *Scheduler {
 	return instance
 }
 
-func (s *Scheduler) start(ctx context.Context) error {
+func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Lock()
 	if s.running {
 		s.mu.Unlock()
@@ -62,9 +58,11 @@ func (s *Scheduler) start(ctx context.Context) error {
 	s.mu.Unlock()
 
 	if err := s.loadSchedules(); err != nil {
-		s.cancel()
-		s.cancel = nil
 		s.mu.Lock()
+		if s.cancel != nil {
+			s.cancel()
+			s.cancel = nil
+		}
 		s.running = false
 		s.mu.Unlock()
 		return err
@@ -82,10 +80,16 @@ func (s *Scheduler) Stop() error {
 		s.mu.Unlock()
 		return fmt.Errorf("scheduler is not running")
 	}
+	if s.cancel == nil {
+		s.mu.Unlock()
+		return fmt.Errorf("scheduler is already stopping")
+	}
+
+	cancel := s.cancel
+	s.cancel = nil
 	s.mu.Unlock()
 
-	s.cancel()
-	s.cancel = nil
+	cancel()
 
 	s.wg.Wait()
 
@@ -102,7 +106,8 @@ func (s *Scheduler) GetActiveRuns() []*models.ScheduleRun {
 
 	runs := make([]*models.ScheduleRun, 0, len(s.activeRuns))
 	for _, run := range s.activeRuns {
-		runs = append(runs, run)
+		val := *run
+		runs = append(runs, &val)
 	}
 	return runs
 }
@@ -141,14 +146,25 @@ func (s *Scheduler) DisableSchedule(scheduleID string) error {
 
 	schedule.Enabled = false
 
+	if err := storage.SaveSchedule(schedule); err != nil {
+		return err
+	}
+
 	s.mu.Lock()
 	s.queue.Remove(scheduleID)
 	s.mu.Unlock()
 
-	return storage.SaveSchedule(schedule)
+	return nil
 }
 
 func (s *Scheduler) TriggerSchedule(scheduleID string) error {
+	s.mu.RLock()
+	if !s.running {
+		s.mu.RUnlock()
+		return fmt.Errorf("scheduler is not running")
+	}
+	s.mu.RUnlock()
+
 	schedule, err := storage.GetSchedule(scheduleID)
 	if err != nil {
 		return err
@@ -161,32 +177,68 @@ func (s *Scheduler) TriggerSchedule(scheduleID string) error {
 }
 
 func (s *Scheduler) UpdateSchedule(scheduleID string, updates *models.Schedule) error {
-	s.mu.Lock()
-	s.queue.Remove(scheduleID)
-	s.mu.Unlock()
-
-	if err := storage.SaveSchedule(updates); err != nil {
-		return err
+	old, err := storage.GetSchedule(scheduleID)
+	if err != nil {
+		old = &models.Schedule{}
 	}
 
+	s.mu.Lock()
+	if existingItem, ok := s.queue.index[scheduleID]; ok {
+		updates.LastRunAt = existingItem.schedule.LastRunAt
+
+		if old.CronExpr == updates.CronExpr && old.Timezone == updates.Timezone {
+			updates.NextRunAt = existingItem.schedule.NextRunAt
+		}
+	}
+	s.mu.Unlock()
+
 	if updates.Enabled {
-		nextRun, err := calculateNextRunFromNow(updates)
-		if err != nil {
+		configChanged := old.CronExpr != updates.CronExpr || old.Timezone != updates.Timezone
+		if configChanged || updates.NextRunAt == "" {
+			nextRun, err := calculateNextRunFromNow(updates)
+			if err != nil {
+				return err
+			}
+			updates.NextRunAt = timeToString(nextRun)
+		}
+
+		if err := storage.SaveSchedule(updates); err != nil {
 			return err
 		}
 
-		updates.NextRunAt = timeToString(nextRun)
+		nextRun, err := stringToTime(updates.NextRunAt)
+		if err != nil {
+			return fmt.Errorf("failed to parse next run time: %w", err)
+		}
+
+		s.mu.Lock()
+		if s.running {
+			if existingItem, ok := s.queue.index[scheduleID]; ok {
+				if existingItem.schedule.LastRunAt > updates.LastRunAt {
+					updates.LastRunAt = existingItem.schedule.LastRunAt
+					if err := storage.SaveSchedule(updates); err != nil {
+						utils.GetLogger().Printf("Failed to save merged schedule %s: %v", updates.ID, err)
+					}
+				}
+
+				existingItem.schedule = updates
+				existingItem.nextRun = nextRun
+				heap.Fix(s.queue, existingItem.index)
+			} else {
+				heap.Push(s.queue, &scheduleQueueItem{
+					schedule: updates,
+					nextRun:  nextRun,
+				})
+			}
+		}
+		s.mu.Unlock()
+	} else {
 		if err := storage.SaveSchedule(updates); err != nil {
 			return err
 		}
 
 		s.mu.Lock()
-		if s.running {
-			heap.Push(s.queue, &scheduleQueueItem{
-				schedule: updates,
-				nextRun:  nextRun,
-			})
-		}
+		s.queue.Remove(scheduleID)
 		s.mu.Unlock()
 	}
 

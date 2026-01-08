@@ -65,6 +65,28 @@ func (s *TopicService) ListTopics() []string {
 	return topics
 }
 
+func (s *TopicService) ListTopicStatuses() []*models.TopicStatus {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	topics := s.ListTopics()
+	statuses := make([]*models.TopicStatus, 0, len(topics))
+
+	for _, name := range topics {
+		unreadCount := 0
+		for _, item := range s.topics[name] {
+			if !item.IsRead {
+				unreadCount++
+			}
+		}
+		statuses = append(statuses, &models.TopicStatus{
+			Name:        name,
+			UnreadCount: unreadCount,
+		})
+	}
+	return statuses
+}
+
 func (s *TopicService) LoadTopic(topic string) ([]*models.FeedItem, error) {
 	if topic == "" {
 		return nil, fmt.Errorf("topic is required")
@@ -105,7 +127,20 @@ func (s *TopicService) PushItem(item *models.FeedItem) (*models.FeedItem, error)
 	}
 
 	s.mu.Lock()
-	s.topics[item.Topic] = append(s.topics[item.Topic], stored)
+	items := s.topics[item.Topic]
+	var foundIdx = -1
+	for i, existing := range items {
+		if existing.ID == item.ID {
+			foundIdx = i
+			break
+		}
+	}
+
+	if foundIdx != -1 {
+		s.topics[item.Topic][foundIdx] = stored
+	} else {
+		s.topics[item.Topic] = append(s.topics[item.Topic], stored)
+	}
 	s.sortTopicLocked(item.Topic)
 	s.mu.Unlock()
 
@@ -121,6 +156,41 @@ func (s *TopicService) sortTopicLocked(topic string) {
 		return items[i].CreatedAt > items[j].CreatedAt
 	})
 	s.topics[topic] = items
+}
+
+func (s *TopicService) MarkItemAsRead(topic, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	items, ok := s.topics[topic]
+	if !ok {
+		return fmt.Errorf("topic not found: %s", topic)
+	}
+
+	var found *models.FeedItem
+	for _, item := range items {
+		if item.ID == id {
+			found = item
+			break
+		}
+	}
+
+	if found == nil {
+		return fmt.Errorf("feed item not found: %s", id)
+	}
+
+	if found.IsRead {
+		return nil
+	}
+
+	found.IsRead = true
+
+	if err := storage.SaveFeedItem(found); err != nil {
+		found.IsRead = false
+		return err
+	}
+
+	return nil
 }
 
 func cloneFeedItem(item *models.FeedItem) *models.FeedItem {

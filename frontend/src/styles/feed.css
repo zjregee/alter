@@ -17,7 +17,9 @@
     margin-bottom: 4px;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition:
+        background-color 0.2s,
+        border-color 0.2s;
     border: 1px solid transparent;
     user-select: none;
     display: flex;
@@ -66,6 +68,15 @@
 
 .feed-article-item:hover {
     border-color: var(--accent);
+}
+
+.feed-article-item.read .feed-article-title {
+    color: var(--text-tertiary);
+    font-weight: 400;
+}
+
+.feed-article-item.read .feed-article-content {
+    color: var(--text-tertiary);
 }
 
 .feed-article-header {

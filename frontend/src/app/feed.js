@@ -19,27 +19,74 @@ export function setupFeedHandlers() {
 export function handleFeedItemPushed(item) {
     const topic = item?.topic;
     if (!topic) return;
-    if (!state.feedTopicsCache.includes(topic)) {
-        state.feedTopicsCache = [...state.feedTopicsCache, topic];
+
+    // 1. Update List UI immediately if it's the current topic
+    if (topic === state.currentFeedTopicId) {
+        let updated = false;
+        if (item?.id) {
+            const existingIndex = state.feedArticlesCache.findIndex((article) => article?.id === item.id);
+            if (existingIndex !== -1) {
+                state.feedArticlesCache[existingIndex] = item;
+                updated = true;
+            }
+        }
+        if (!updated) {
+            state.feedArticlesCache = [item, ...state.feedArticlesCache];
+            state.feedArticlesCache.sort((a, b) => (b?.created_at || 0) - (a?.created_at || 0));
+        }
+        renderFeedArticles();
     }
-    if (!state.currentFeedTopicId) {
-        state.currentFeedTopicId = topic;
-    }
-    renderFeedTopics();
-    if (topic !== state.currentFeedTopicId) return;
-    let updated = false;
-    if (item?.id) {
-        const existingIndex = state.feedArticlesCache.findIndex((article) => article?.id === item.id);
-        if (existingIndex !== -1) {
-            state.feedArticlesCache[existingIndex] = item;
-            updated = true;
+
+    // 2. Incremental update for unread counts instead of full refreshTopicStatuses
+    // This avoids the "flicker" of reloading the entire topic list
+    if (!item.is_read) {
+        // If it's a brand new topic, we still need a full refresh to show it in the sidebar
+        if (!state.feedTopicsCache.includes(topic)) {
+            refreshTopicStatuses();
+        } else {
+            // Just increment the count and update the specific dot in DOM
+            state.feedTopicsUnread[topic] = (state.feedTopicsUnread[topic] || 0) + 1;
+            updateTopicDotUI(topic);
+            updateGlobalUnreadDot();
         }
     }
-    if (!updated) {
-        state.feedArticlesCache = [item, ...state.feedArticlesCache];
+}
+
+function updateTopicDotUI(topic) {
+    const topicEl = document.querySelector(`.feed-topic-item[data-topic-id="${CSS.escape(topic)}"]`);
+    if (topicEl) {
+        const count = state.feedTopicsUnread[topic] || 0;
+        if (count > 0) {
+            topicEl.classList.add('has-unread');
+        } else {
+            topicEl.classList.remove('has-unread');
+        }
     }
-    state.feedArticlesCache.sort((a, b) => (b?.created_at || 0) - (a?.created_at || 0));
-    renderFeedArticles();
+}
+
+async function refreshTopicStatuses() {
+    if (!window.go?.app?.App?.ListFeedTopicStatuses) return;
+    try {
+        const statuses = await window.go.app.App.ListFeedTopicStatuses();
+        if (Array.isArray(statuses)) {
+            // Update cache of topics if needed (for sidebar list)
+            // We want to preserve order if possible or just rely on backend sort
+            const newTopics = statuses.map((s) => s.name);
+            // Simple check if list changed significantly, or just overwrite
+            state.feedTopicsCache = newTopics;
+
+            // Update unread counts
+            state.feedTopicsUnread = {};
+            statuses.forEach((s) => {
+                state.feedTopicsUnread[s.name] = s.unread_count;
+            });
+
+            updateGlobalUnreadDot();
+            renderFeedTopics();
+        }
+    } catch (err) {
+        console.error('Failed to refresh topic statuses', err);
+    }
 }
 
 export function renderFeedTopics() {
@@ -60,7 +107,13 @@ export function renderFeedTopics() {
     state.feedTopicsCache.forEach((topic) => {
         const topicEl = document.createElement('div');
         topicEl.className = 'feed-topic-item';
-        topicEl.innerHTML = `<div class="thread-text"></div>`;
+
+        const unreadCount = state.feedTopicsUnread[topic] || 0;
+        if (unreadCount > 0) {
+            topicEl.classList.add('has-unread');
+        }
+
+        topicEl.innerHTML = `<div class="thread-text"></div><div class="dot"></div>`;
         topicEl.querySelector('.thread-text').textContent = topic;
         topicEl.dataset.topicId = topic;
         if (topic === state.currentFeedTopicId) {
@@ -104,6 +157,9 @@ export function renderFeedArticles() {
     state.feedArticlesCache.forEach((article) => {
         const articleEl = document.createElement('div');
         articleEl.className = 'feed-article-item';
+        if (article.is_read) {
+            articleEl.classList.add('read');
+        }
 
         const headerEl = document.createElement('div');
         headerEl.className = 'feed-article-header';
@@ -123,6 +179,27 @@ export function renderFeedArticles() {
         articleEl.appendChild(contentEl);
 
         articleEl.addEventListener('click', () => {
+            // Mark as read if not already
+            if (!article.is_read) {
+                article.is_read = true;
+                articleEl.classList.add('read');
+
+                // Update unread count
+                const topic = article.topic;
+                if (topic && state.feedTopicsUnread[topic] > 0) {
+                    state.feedTopicsUnread[topic]--;
+                    updateTopicDotUI(topic);
+                    updateGlobalUnreadDot();
+                }
+
+                // Call backend asynchronously
+                if (window.go?.app?.App?.MarkFeedItemAsRead && article.topic && article.id) {
+                    window.go.app.App.MarkFeedItemAsRead(article.topic, article.id).catch((err) => {
+                        console.error('Failed to mark item as read', err);
+                    });
+                }
+            }
+
             if (dom.feedDetailTitle) dom.feedDetailTitle.textContent = article?.title || '未命名';
             if (dom.feedDetailTimestamp) dom.feedDetailTimestamp.textContent = formatFeedTimestamp(article?.created_at);
             renderFeedDetailMarkdown(article?.content || '');
@@ -134,7 +211,7 @@ export function renderFeedArticles() {
 }
 
 export async function loadFeedTopics() {
-    if (!window.go?.app?.App?.ListFeedTopics) {
+    if (!window.go?.app?.App?.ListFeedTopicStatuses) {
         state.feedTopicsCache = [];
         state.feedTopicsError = 'Feed 暂不可用';
         renderFeedTopics();
@@ -145,10 +222,12 @@ export async function loadFeedTopics() {
     state.feedTopicsError = '';
     renderFeedTopics();
     try {
-        const topics = await window.go.app.App.ListFeedTopics();
-        state.feedTopicsCache = Array.isArray(topics) ? topics : [];
+        await refreshTopicStatuses();
+
         if (!state.feedTopicsCache.includes(state.currentFeedTopicId)) {
-            state.currentFeedTopicId = state.feedTopicsCache[0] || '';
+            state.feedTopicsCache.length > 0
+                ? (state.currentFeedTopicId = state.feedTopicsCache[0])
+                : (state.currentFeedTopicId = '');
         }
     } catch (error) {
         console.error('加载Feed主题失败:', error);
@@ -165,6 +244,18 @@ export async function loadFeedTopics() {
         return;
     }
     await loadFeedArticles(state.currentFeedTopicId);
+}
+
+export function updateGlobalUnreadDot() {
+    const feedBtn = document.querySelector('.view-btn[data-view="notifications"]');
+    if (!feedBtn) return;
+
+    const totalUnread = Object.values(state.feedTopicsUnread).reduce((a, b) => a + b, 0);
+    if (totalUnread > 0) {
+        feedBtn.classList.add('has-unread');
+    } else {
+        feedBtn.classList.remove('has-unread');
+    }
 }
 
 async function loadFeedArticles(topic) {

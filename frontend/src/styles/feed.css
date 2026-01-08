@@ -1,7 +1,7 @@
 /* --- Feed View Styles --- */
 .feed-topics-list {
     padding: 8px;
-    height: 100%;
+    flex: 1;
     overflow-y: auto;
 }
 

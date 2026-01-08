@@ -16,7 +16,7 @@ export async function loadModels() {
 
 export function updateModelToggle() {
     if (!dom.modelToggleLabel) return;
-    const currentModel = state.modelsCache.find(model => model.id === state.currentModelID);
+    const currentModel = state.modelsCache.find((model) => model.id === state.currentModelID);
     dom.modelToggleLabel.textContent = currentModel ? currentModel.name : 'Select model';
 }
 
@@ -26,7 +26,7 @@ export function updateModelToggleState() {
 }
 
 export function syncCurrentThreadModel() {
-    const thread = state.threadsCache.find(item => item.id === state.currentThreadID);
+    const thread = state.threadsCache.find((item) => item.id === state.currentThreadID);
     state.currentModelID = thread ? thread.model : '';
     updateModelToggle();
     renderModelList();
@@ -45,7 +45,13 @@ export function renderModelList() {
     if (!dom.modelList) return;
     dom.modelList.innerHTML = '';
     const term = state.modelSearchTerm.toLowerCase();
-    const filtered = state.modelsCache.filter(m => !term || m.name.toLowerCase().includes(term) || m.id.toLowerCase().includes(term) || (m.provider || '').toLowerCase().includes(term));
+    const filtered = state.modelsCache.filter(
+        (m) =>
+            !term ||
+            m.name.toLowerCase().includes(term) ||
+            m.id.toLowerCase().includes(term) ||
+            (m.provider || '').toLowerCase().includes(term)
+    );
 
     if (filtered.length === 0) {
         dom.modelList.innerHTML = `<div class="model-empty">${state.modelsCache.length === 0 ? 'No models available' : 'No models found'}</div>`;
@@ -63,7 +69,7 @@ export function renderModelList() {
         const groupEl = document.createElement('div');
         groupEl.className = 'model-group';
         groupEl.innerHTML = `<div class="model-group-title">${provider}</div>`;
-        models.forEach(model => {
+        models.forEach((model) => {
             const option = document.createElement('button');
             option.type = 'button';
             option.className = 'model-option';
@@ -84,7 +90,7 @@ async function selectModel(modelID) {
     try {
         await window.go.app.App.UpdateThreadModel(state.currentThreadID, modelID);
         state.currentModelID = modelID;
-        const thread = state.threadsCache.find(item => item.id === state.currentThreadID);
+        const thread = state.threadsCache.find((item) => item.id === state.currentThreadID);
         if (thread) thread.model = modelID;
         updateModelToggle();
         renderModelList();

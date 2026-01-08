@@ -18,7 +18,7 @@ export function safeParseJSON(text) {
             return normalized;
         }
         return JSON.parse(normalized);
-    } catch (error) {
+    } catch {
         return null;
     }
 }
@@ -31,7 +31,7 @@ export function formatToolArgs(args) {
             if (parsed && typeof parsed === 'object') {
                 return JSON.stringify(parsed, null, 4);
             }
-        } catch (error) {
+        } catch {
             return args;
         }
         return args;
@@ -80,22 +80,22 @@ export function formatMessage(content) {
     // Note: JS requires 'u' flag for Unicode property escapes like \p{Unified_Ideograph}
     // \p{Unified_Ideograph} is the JS equivalent of \p{Han}
     let formatted = content;
-    
+
     // hanToLatinMidPunct: ([\p{Han}])([-/]+)([A-Za-z0-9]) -> $1 $2 $3
     formatted = formatted.replace(/(\p{Unified_Ideograph})([-/]+)([A-Za-z0-9])/gu, '$1 $2 $3');
     // latinToHanMidPunct: ([A-Za-z0-9])([-/]+)([\p{Han}]) -> $1 $2 $3
     formatted = formatted.replace(/([A-Za-z0-9])([-/]+)(\p{Unified_Ideograph})/gu, '$1 $2 $3');
-    
+
     // hanToLatinOpenPunct: ([\p{Han}])([\(\[\{'""]+)([A-Za-z0-9]) -> $1 $2$3
     formatted = formatted.replace(/(\p{Unified_Ideograph})([([{'""]+)([A-Za-z0-9])/gu, '$1 $2$3');
     // latinToHanOpenPunct: ([A-Za-z0-9])([\(\[\{'""]+)([\p{Han}]) -> $1 $2$3
     formatted = formatted.replace(/([A-Za-z0-9])([([{'""]+)(\p{Unified_Ideograph})/gu, '$1 $2$3');
-    
+
     // hanToLatinPunct: ([\p{Han}])([,.;:!?\)\]\}]+)([A-Za-z0-9]) -> $1$2 $3
     formatted = formatted.replace(/(\p{Unified_Ideograph})([,.;:!?)}]+)([A-Za-z0-9])/gu, '$1$2 $3');
     // latinToHanPunct: ([A-Za-z0-9])([,.;:!?\)\]\}]+)([\p{Han}]) -> $1$2 $3
     formatted = formatted.replace(/([A-Za-z0-9])([,.;:!?)}]+)(\p{Unified_Ideograph})/gu, '$1$2 $3');
-    
+
     // hanToLatin: ([\p{Han}])([A-Za-z0-9]) -> $1 $2
     formatted = formatted.replace(/(\p{Unified_Ideograph})([A-Za-z0-9])/gu, '$1 $2');
     // latinToHan: ([A-Za-z0-9])([\p{Han}]) -> $1 $2

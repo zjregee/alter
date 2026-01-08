@@ -7,8 +7,15 @@ import { setupActionMenuListeners } from './chat/actions.js';
 import { setupChatInputHandlers } from './chat/input.js';
 import { loadModels, setModelDropdownOpen, setupModelHandlers } from './models.js';
 import { loadWorkspaces, setWorkspaceDropdownOpen, setupWorkspaceHandlers } from './workspaces.js';
-import { createNewThread, handleMessagesTruncated, handleThreadTitleUpdated, loadThreads, setupThreadUI } from './threads.js';
+import {
+    createNewThread,
+    handleMessagesTruncated,
+    handleThreadTitleUpdated,
+    loadThreads,
+    setupThreadUI
+} from './threads.js';
 import { setupViewSwitcher } from './view.js';
+import { setupSettingsNavigation } from './settings.js';
 
 export function initializeApp() {
     setThreadRefresher(() => loadThreads(false));
@@ -20,6 +27,7 @@ export function initializeApp() {
     setupActionMenuListeners();
     setupSidebarResizer();
     setupFeedHandlers();
+    setupSettingsNavigation();
 
     setupWorkspaceToggle();
     setupModelToggle();

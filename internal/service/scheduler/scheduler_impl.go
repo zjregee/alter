@@ -239,7 +239,6 @@ func (s *Scheduler) syncSchedules() error {
 		} else {
 			dbSch.Name = fileSch.Name
 			dbSch.WorkflowConfig = fileSch.WorkflowConfig
-			dbSch.Enabled = fileSch.Enabled
 			dbSch.CronExpr = fileSch.CronExpr
 			dbSch.Timezone = fileSch.Timezone
 			dbSch.MaxRetries = fileSch.MaxRetries

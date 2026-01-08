@@ -86,7 +86,6 @@
     word-wrap: break-word;
 }
 
-
 .message-actions {
     display: flex;
     justify-content: flex-end;
@@ -94,7 +93,9 @@
     margin-top: 8px;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.15s ease, visibility 0s linear 0.15s;
+    transition:
+        opacity 0.15s ease,
+        visibility 0s linear 0.15s;
     visibility: hidden;
     position: relative;
     z-index: 1;
@@ -104,7 +105,9 @@
     opacity: 1;
     pointer-events: auto;
     visibility: visible;
-    transition: opacity 0.15s ease, visibility 0s;
+    transition:
+        opacity 0.15s ease,
+        visibility 0s;
 }
 
 .message-actions .icon-btn {
@@ -148,7 +151,9 @@
     opacity: 0;
     pointer-events: none;
     transform: translateY(6px);
-    transition: opacity 0.15s ease, transform 0.15s ease;
+    transition:
+        opacity 0.15s ease,
+        transform 0.15s ease;
     overflow-y: auto;
     z-index: 5;
 }
@@ -177,9 +182,15 @@
 }
 
 @keyframes copy-pop {
-    0% { transform: scale(1); }
-    45% { transform: scale(1.06); }
-    100% { transform: scale(1); }
+    0% {
+        transform: scale(1);
+    }
+    45% {
+        transform: scale(1.06);
+    }
+    100% {
+        transform: scale(1);
+    }
 }
 
 .thinking-status {
@@ -211,12 +222,14 @@
 }
 
 @keyframes dot-opacity {
-  0%, 60%, 100% {
-    opacity: 0;
-  }
-  30% {
-    opacity: 1;
-  }
+    0%,
+    60%,
+    100% {
+        opacity: 0;
+    }
+    30% {
+        opacity: 1;
+    }
 }
 
 /* Tool Calls */
@@ -239,7 +252,6 @@
     width: 100%;
     max-width: 100%;
 }
-
 
 .tool-call-header {
     display: flex;

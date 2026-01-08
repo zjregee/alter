@@ -34,11 +34,7 @@ export async function handleRegenerateTurn(container) {
     };
 
     try {
-        await window.go.app.App.EditAndResendMessage(
-            state.currentThreadID,
-            userContent,
-            userIndex
-        );
+        await window.go.app.App.EditAndResendMessage(state.currentThreadID, userContent, userIndex);
     } catch (error) {
         state.pendingRegenerateContext = null;
         console.error('Regenerate response error:', error);

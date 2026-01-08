@@ -8,7 +8,7 @@ import { handleCancel } from './feedback.js';
 
 export function setupChatInputHandlers() {
     if (dom.chatInput) {
-        dom.chatInput.addEventListener('input', function() {
+        dom.chatInput.addEventListener('input', function () {
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 300) + 'px';
         });

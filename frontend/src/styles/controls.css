@@ -115,7 +115,9 @@
     opacity: 0;
     pointer-events: none;
     transform: translateY(6px);
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition:
+        opacity 0.2s ease,
+        transform 0.2s ease;
     z-index: 12;
 }
 
@@ -124,8 +126,6 @@
     pointer-events: auto;
     transform: translateY(0);
 }
-
-
 
 .workspace-list {
     max-height: 160px;
@@ -180,7 +180,9 @@
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    transition: background-color 0.2s ease, border-color 0.2s ease;
+    transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease;
     text-align: left;
 }
 
@@ -246,7 +248,6 @@
     transition: color 0.2s ease;
 }
 
-
 .model-switcher {
     position: relative;
 }
@@ -291,7 +292,9 @@
     opacity: 0;
     pointer-events: none;
     transform: translateY(6px);
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition:
+        opacity 0.2s ease,
+        transform 0.2s ease;
     z-index: 10;
 }
 
@@ -364,7 +367,9 @@
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    transition: background-color 0.2s ease, border-color 0.2s ease;
+    transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease;
     text-align: left;
 }
 

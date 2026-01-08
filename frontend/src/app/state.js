@@ -24,7 +24,7 @@ export const state = {
     isStreamingLoopActive: false,
     pendingThinkingBuffer: '',
     isThinkingLoopActive: false,
-    
+
     lastAssistantTurnIndex: -1,
     cancelHandled: false,
     cancelVisible: false,

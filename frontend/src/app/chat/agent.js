@@ -1,7 +1,18 @@
 import { dom } from '../dom.js';
 import { state } from '../state.js';
 import { getEventText, normalizeEventContent, safeParseJSON } from '../utils.js';
-import { appendThoughtBlock, appendToolCall, clearToolTimers, finalizeTurn, hideThinkingStatus, showThinkingStatus, updateStreamChunk, updateThinkingChunk, updateToolCall, expandThinkingBlock, collapseThinkingBlock, flushStreamBuffer } from './turns.js';
+import {
+    appendToolCall,
+    clearToolTimers,
+    finalizeTurn,
+    hideThinkingStatus,
+    showThinkingStatus,
+    updateStreamChunk,
+    updateThinkingChunk,
+    updateToolCall,
+    collapseThinkingBlock,
+    flushStreamBuffer
+} from './turns.js';
 import { appendTurnActions } from './actions.js';
 import { handleCancel, handleError } from './feedback.js';
 import { setCancelVisibility, setProcessingState } from './processing.js';

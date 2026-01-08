@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -526,11 +527,16 @@ func (a *Agent) reActLoop(ctx context.Context, userInput string, msgChan chan mo
 					successfulToolCalls += 1
 				}
 
+				content := result
+				if err != nil {
+					content = fmt.Sprintf("Error: %v", err)
+				}
+
 				sendAndCollect(models.AgentExecutingToolFinish{
 					ID:              toolID,
 					Name:            tc.Function.Name,
 					Args:            tc.Function.Arguments,
-					Content:         result,
+					Content:         content,
 					DurationSeconds: durationSeconds,
 				})
 
@@ -638,6 +644,7 @@ func (a *Agent) generate(ctx context.Context, onThinking func(string), onContent
 	var contentBuilder strings.Builder
 	var reasoningBuilder strings.Builder
 	var allToolCalls []schema.ToolCall
+	toolCallsMap := make(map[int]*schema.ToolCall)
 
 	finalResponse = &schema.Message{
 		Role: schema.Assistant,
@@ -675,9 +682,28 @@ func (a *Agent) generate(ctx context.Context, onThinking func(string), onContent
 			finalResponse.ResponseMeta = chunk.ResponseMeta
 		}
 
-		if len(chunk.ToolCalls) > 0 {
-			allToolCalls = append(allToolCalls, chunk.ToolCalls...)
+		for _, tc := range chunk.ToolCalls {
+			idx := 0
+			if tc.Index != nil {
+				idx = *tc.Index
+			}
+
+			if existing, ok := toolCallsMap[idx]; ok {
+				existing.Function.Arguments += tc.Function.Arguments
+			} else {
+				newTC := tc
+				toolCallsMap[idx] = &newTC
+			}
 		}
+	}
+
+	var indices []int
+	for idx := range toolCallsMap {
+		indices = append(indices, idx)
+	}
+	sort.Ints(indices)
+	for _, idx := range indices {
+		allToolCalls = append(allToolCalls, *toolCallsMap[idx])
 	}
 
 	finalResponse.Content = contentBuilder.String()

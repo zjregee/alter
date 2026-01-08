@@ -26,7 +26,8 @@
     --error-text: #d65b5b;
     --scroll-thumb: #3a414d;
     --scroll-thumb-hover: #4b5360;
-    --font-base: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --font-base:
+        'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
 body {

@@ -207,8 +207,9 @@ function getTurnCopyMarkdown(container) {
         parts.push(rawMessage.trim());
     } else {
         const rawBlocks = messageContent
-            ? Array.from(messageContent.querySelectorAll('[data-raw-markdown]'))
-                .filter((node) => !node.closest('.thought-block'))
+            ? Array.from(messageContent.querySelectorAll('[data-raw-markdown]')).filter(
+                  (node) => !node.closest('.thought-block')
+              )
             : [];
         if (rawBlocks.length) {
             rawBlocks.forEach((block) => {
@@ -232,7 +233,7 @@ async function copyTextToClipboard(text) {
     try {
         await navigator.clipboard.writeText(text);
         return true;
-    } catch (error) {
+    } catch {
         const textarea = document.createElement('textarea');
         textarea.value = text;
         textarea.style.position = 'fixed';

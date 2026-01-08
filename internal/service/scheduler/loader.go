@@ -31,7 +31,6 @@ type workflowYAML struct {
 type scheduleYAML struct {
 	CronExpr      string        `yaml:"cron"`
 	Timezone      string        `yaml:"timezone"`
-	Enabled       *bool         `yaml:"enabled"`
 	MaxRetries    int           `yaml:"max_retries"`
 	RetryInterval time.Duration `yaml:"retry_interval"`
 	RetryBackoff  float64       `yaml:"retry_backoff"`
@@ -97,11 +96,6 @@ func parseWorkflowFile(path string) (*models.Schedule, error) {
 		return nil, nil
 	}
 
-	enabled := true
-	if wf.Schedule.Enabled != nil {
-		enabled = *wf.Schedule.Enabled
-	}
-
 	timezone := wf.Schedule.Timezone
 	if timezone == "" {
 		timezone = "Local"
@@ -118,7 +112,7 @@ func parseWorkflowFile(path string) (*models.Schedule, error) {
 			RequestInterval: wf.RequestInterval,
 			WorkDir:         wf.WorkDir,
 		},
-		Enabled:        enabled,
+		Enabled:        false,
 		CronExpr:       wf.Schedule.CronExpr,
 		Timezone:       timezone,
 		MaxRetries:     wf.Schedule.MaxRetries,

@@ -115,7 +115,11 @@
     color: var(--text-primary);
     font-size: 10px;
     outline: none;
-    transition: width 0.2s ease, opacity 0.2s ease, padding 0.2s ease, border-color 0.2s ease;
+    transition:
+        width 0.2s ease,
+        opacity 0.2s ease,
+        padding 0.2s ease,
+        border-color 0.2s ease;
     pointer-events: none;
 }
 

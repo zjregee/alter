@@ -84,7 +84,7 @@ export function showThinkingStatus() {
     state.currentThinkingBlock = document.createElement('div');
     state.currentThinkingBlock.className = 'thought-block thinking';
     const thinkingBlock = state.currentThinkingBlock;
-    
+
     // Header
     const header = document.createElement('div');
     header.className = 'thought-header';
@@ -108,7 +108,7 @@ export function showThinkingStatus() {
             <span class="thinking-timer">0.0s</span>
         </span>
     `;
-    
+
     // Content area for reasoning stream
     const content = document.createElement('div');
     content.className = 'thought-content';
@@ -138,7 +138,7 @@ export function showThinkingStatus() {
 
 export function updateThinkingChunk(chunk) {
     if (!state.currentThinkingBlock) return;
-    
+
     state.pendingThinkingBuffer += chunk;
     if (!state.isThinkingLoopActive) {
         processThinkingBuffer();
@@ -171,10 +171,10 @@ function processThinkingBuffer() {
     state.pendingThinkingBuffer = state.pendingThinkingBuffer.slice(charsToRender);
 
     state.currentThinkingText = (state.currentThinkingText || '') + chunk;
-    
+
     const contentDiv = state.currentThinkingBlock.querySelector('.thought-content');
     const mdBody = contentDiv.querySelector('.markdown-body');
-    
+
     // If we have content, make sure the block indicates it implies 'Process'
     if (state.currentThinkingText.trim() && !state.currentThinkingBlock.classList.contains('has-content')) {
         state.currentThinkingBlock.classList.add('has-content');
@@ -193,10 +193,10 @@ export function flushThinkingBuffer() {
     if (state.pendingThinkingBuffer && state.currentThinkingBlock) {
         state.currentThinkingText = (state.currentThinkingText || '') + state.pendingThinkingBuffer;
         state.pendingThinkingBuffer = '';
-        
+
         const contentDiv = state.currentThinkingBlock.querySelector('.thought-content');
         const mdBody = contentDiv.querySelector('.markdown-body');
-        
+
         if (state.currentThinkingText.trim() && !state.currentThinkingBlock.classList.contains('has-content')) {
             state.currentThinkingBlock.classList.add('has-content');
             const label = state.currentThinkingBlock.querySelector('.thinking-label');
@@ -295,12 +295,12 @@ export function hideThinkingStatus() {
     // Instead we mark it as done/collapsed or finalize it in finalizeTurn.
     // But if it has no content (no reasoning), we might want to remove it or change it to a simple "Thought" label.
     if (state.currentThinkingBlock) {
-        // If no text was streamed and it's just a spinner, we might remove it 
+        // If no text was streamed and it's just a spinner, we might remove it
         // OR we wait for finalizeTurn to decide.
         // For now, just stop the timer animation.
         const dots = state.currentThinkingBlock.querySelector('.thinking-dots');
         if (dots) dots.style.display = 'none';
-        
+
         state.currentThinkingBlock.classList.remove('thinking');
         state.currentThinkingBlock.classList.add('finished');
     }
@@ -322,11 +322,11 @@ export function finalizeTurn(thoughtData) {
             state.currentThinkingText = reasoning;
             const mdBody = state.currentThinkingBlock.querySelector('.thought-content .markdown-body');
             renderMarkdownInto(mdBody, reasoning);
-            
+
             // Update Header
             const label = state.currentThinkingBlock.querySelector('.thinking-label');
             if (label) label.textContent = 'Thought';
-            
+
             const timer = state.currentThinkingBlock.querySelector('.thinking-timer');
             if (timer && duration_seconds) {
                 timer.textContent = `for ${duration_seconds.toFixed(2)}s`;
@@ -386,7 +386,7 @@ export function finalizeTurn(thoughtData) {
     state.isStreamingLoopActive = false;
     state.pendingThinkingBuffer = '';
     state.isThinkingLoopActive = false;
-    
+
     agentScroll();
 }
 
@@ -478,7 +478,7 @@ export function appendThoughtBlock(text, durationInSeconds, isReasoning = false)
     }
     // Only set these if it's the "answer" part, but appendThoughtBlock is vague now.
     // We'll rely on finalizeTurn for the main flow. This is mostly for history loading or legacy.
-    
+
     state.currentTurnContainer.querySelector('.message-content').appendChild(thoughtBlock);
     agentScroll();
 }
@@ -603,7 +603,8 @@ export function appendToolCall(payload, isHistory = false) {
 }
 
 export function updateToolCall(payload, isHistory = false) {
-    if (!payload || typeof payload !== 'object' || !payload.id || !state.currentToolCallElements.has(payload.id)) return;
+    if (!payload || typeof payload !== 'object' || !payload.id || !state.currentToolCallElements.has(payload.id))
+        return;
 
     const toolCallEl = state.currentToolCallElements.get(payload.id);
     stopToolTimer(payload.id);
@@ -621,7 +622,7 @@ export function updateToolCall(payload, isHistory = false) {
         }
     } else {
         const startTime = parseInt(toolCallEl.dataset.startTime, 10);
-        const duration = ((Date.now() - startTime) / 1000);
+        const duration = (Date.now() - startTime) / 1000;
         durationEl.textContent = `${duration.toFixed(2)}s`;
     }
 

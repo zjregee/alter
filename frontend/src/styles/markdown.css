@@ -23,12 +23,22 @@
     line-height: 1.25;
 }
 
-.markdown-body h1 { font-size: 18px; }
-.markdown-body h2 { font-size: 16px; }
-.markdown-body h3 { font-size: 14px; }
-.markdown-body h4 { font-size: 13px; }
+.markdown-body h1 {
+    font-size: 18px;
+}
+.markdown-body h2 {
+    font-size: 16px;
+}
+.markdown-body h3 {
+    font-size: 14px;
+}
+.markdown-body h4 {
+    font-size: 13px;
+}
 .markdown-body h5,
-.markdown-body h6 { font-size: 12px; }
+.markdown-body h6 {
+    font-size: 12px;
+}
 
 .markdown-body p {
     margin: 0 0 8px;
@@ -110,7 +120,6 @@
     background: var(--panel-bg-alt);
     color: var(--text-primary);
 }
-
 
 /* Custom spacing for thinking status elements */
 .thinking-status > .tool-icon {

@@ -14,10 +14,12 @@ export async function loadWorkspaces() {
 
 export function updateWorkspaceToggle() {
     if (!dom.workspaceToggleLabel) return;
-    const active = state.workspacesCache.find(workspace => workspace.path === state.currentWorkspacePath);
+    const active = state.workspacesCache.find((workspace) => workspace.path === state.currentWorkspacePath);
     dom.workspaceToggleLabel.textContent = active
         ? getWorkspaceName(active.path)
-        : (state.currentWorkspacePath ? getWorkspaceName(state.currentWorkspacePath) : 'Workspace');
+        : state.currentWorkspacePath
+          ? getWorkspaceName(state.currentWorkspacePath)
+          : 'Workspace';
 }
 
 export function updateWorkspaceToggleState() {
@@ -40,14 +42,16 @@ export function renderWorkspaceList() {
     dom.workspaceList.innerHTML = '';
 
     const term = state.workspaceSearchTerm.toLowerCase();
-    const filtered = state.workspacesCache.filter(w => !term || getWorkspaceName(w.path).toLowerCase().includes(term) || w.path.toLowerCase().includes(term));
+    const filtered = state.workspacesCache.filter(
+        (w) => !term || getWorkspaceName(w.path).toLowerCase().includes(term) || w.path.toLowerCase().includes(term)
+    );
 
     if (filtered.length === 0) {
         dom.workspaceList.innerHTML = `<div class="workspace-empty">${state.workspacesCache.length === 0 ? 'No workspaces available' : 'No workspaces found'}</div>`;
         return;
     }
 
-    filtered.forEach(workspace => {
+    filtered.forEach((workspace) => {
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'workspace-item';
@@ -62,14 +66,19 @@ export function renderWorkspaceList() {
 }
 
 async function setWorkspace(workspacePath) {
-    if (!workspacePath || !state.currentThreadID || state.isProcessing || workspacePath === state.currentWorkspacePath) {
+    if (
+        !workspacePath ||
+        !state.currentThreadID ||
+        state.isProcessing ||
+        workspacePath === state.currentWorkspacePath
+    ) {
         setWorkspaceDropdownOpen(false);
         return;
     }
     try {
         await window.go.app.App.UpdateWorkspace(state.currentThreadID, workspacePath);
         state.currentWorkspacePath = workspacePath;
-        const thread = state.threadsCache.find(item => item.id === state.currentThreadID);
+        const thread = state.threadsCache.find((item) => item.id === state.currentThreadID);
         if (thread) thread.work_dir = workspacePath;
         await loadWorkspaces();
         setWorkspaceDropdownOpen(false);
@@ -84,7 +93,7 @@ export async function selectWorkspaceDirectory() {
         const selectedPath = await window.go.app.App.SelectWorkspace(state.currentThreadID);
         if (selectedPath) {
             state.currentWorkspacePath = selectedPath;
-            const thread = state.threadsCache.find(item => item.id === state.currentThreadID);
+            const thread = state.threadsCache.find((item) => item.id === state.currentThreadID);
             if (thread) thread.work_dir = selectedPath;
         }
         await loadWorkspaces();
@@ -94,7 +103,7 @@ export async function selectWorkspaceDirectory() {
 }
 
 export function syncCurrentThreadWorkspace() {
-    const thread = state.threadsCache.find(item => item.id === state.currentThreadID);
+    const thread = state.threadsCache.find((item) => item.id === state.currentThreadID);
     state.currentWorkspacePath = thread?.work_dir || getDefaultWorkspacePath() || '';
     updateWorkspaceToggle();
     renderWorkspaceList();
@@ -127,6 +136,6 @@ function getWorkspaceName(path) {
 }
 
 function getDefaultWorkspacePath() {
-    const fallback = state.workspacesCache.find(w => w.is_default);
-    return fallback ? fallback.path : (state.workspacesCache[0]?.path || '');
+    const fallback = state.workspacesCache.find((w) => w.is_default);
+    return fallback ? fallback.path : state.workspacesCache[0]?.path || '';
 }

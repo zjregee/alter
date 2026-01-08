@@ -2,7 +2,18 @@ import { dom } from './dom.js';
 import { state } from './state.js';
 import { getEventDurationSeconds, getEventText, safeParseJSON } from './utils.js';
 import { appendTurnActions } from './chat/actions.js';
-import { createTurnContainer, addUserMessage, appendResponseBlock, appendStatusMessage, appendThoughtBlock, appendToolCall, hideThinkingStatus, setChatEmptyState, showThinkingStatus, updateToolCall } from './chat/turns.js';
+import {
+    createTurnContainer,
+    addUserMessage,
+    appendResponseBlock,
+    appendStatusMessage,
+    appendThoughtBlock,
+    appendToolCall,
+    hideThinkingStatus,
+    setChatEmptyState,
+    showThinkingStatus,
+    updateToolCall
+} from './chat/turns.js';
 import { setTurnRegenerateContext } from './chat/regenerate.js';
 import { setProcessingState } from './chat/processing.js';
 import { syncCurrentThreadModel } from './models.js';
@@ -61,11 +72,7 @@ export async function loadThreadMessages(threadID) {
             } else if (turn.role === 'assistant') {
                 createTurnContainer();
                 if (userIndex >= 0) {
-                    setTurnRegenerateContext(
-                        state.currentTurnContainer,
-                        userIndex,
-                        state.userMessageCache[userIndex]
-                    );
+                    setTurnRegenerateContext(state.currentTurnContainer, userIndex, state.userMessageCache[userIndex]);
                 }
                 state.currentToolCallElements.clear();
                 state.lastThoughtText = '';
@@ -86,7 +93,7 @@ export async function loadThreadMessages(threadID) {
                             if (payload && typeof payload === 'object') {
                                 const reasoning = typeof payload.reasoning === 'string' ? payload.reasoning : '';
                                 const content = typeof payload.content === 'string' ? payload.content : '';
-                                if (reasoning.trim()) {
+                                if (reasoning.trim() || typeof duration === 'number') {
                                     appendThoughtBlock(reasoning, duration, true);
                                 }
                                 if (content.trim()) {
@@ -117,15 +124,18 @@ export async function loadThreadMessages(threadID) {
                                 appendStatusMessage(state.currentTurnContainer, 'Cancelled', 'var(--text-tertiary)');
                                 isCancelled = true;
                             } else {
-                                appendStatusMessage(state.currentTurnContainer, '错误: ' + historyErrorText, 'var(--error-text)');
+                                appendStatusMessage(
+                                    state.currentTurnContainer,
+                                    '错误: ' + historyErrorText,
+                                    'var(--error-text)'
+                                );
                             }
                             break;
                         }
                     }
                 }
-                const hasTurnContent = state.currentTurnContainer
-                    ?.querySelector('.message-content')
-                    ?.children.length > 0;
+                const hasTurnContent =
+                    state.currentTurnContainer?.querySelector('.message-content')?.children.length > 0;
                 if (hasTurnContent && !isCancelled) {
                     const allowRegenerate = sawFinalResponse;
                     appendTurnActions(state.currentTurnContainer, allowRegenerate);
@@ -191,8 +201,8 @@ export function renderThreadList() {
     dom.threadList.innerHTML = '';
     const term = state.searchTerm.toLowerCase();
     state.threadsCache
-        .filter(thread => thread.title.toLowerCase().includes(term))
-        .forEach(thread => dom.threadList.appendChild(createThreadItem(thread)));
+        .filter((thread) => thread.title.toLowerCase().includes(term))
+        .forEach((thread) => dom.threadList.appendChild(createThreadItem(thread)));
 }
 
 function createThreadItem(thread) {
@@ -221,15 +231,22 @@ function createThreadItem(thread) {
         await loadThreads(!wasCurrent);
     });
 
-    item.addEventListener('dragstart', (e) => { state.dragSourceID = thread.id; e.dataTransfer.effectAllowed = 'move'; });
-    item.addEventListener('dragover', (e) => { e.preventDefault(); item.classList.add('drag-over'); e.dataTransfer.dropEffect = 'move'; });
+    item.addEventListener('dragstart', (e) => {
+        state.dragSourceID = thread.id;
+        e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        item.classList.add('drag-over');
+        e.dataTransfer.dropEffect = 'move';
+    });
     item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
     item.addEventListener('drop', async (e) => {
         e.preventDefault();
         item.classList.remove('drag-over');
         if (!state.dragSourceID || state.dragSourceID === thread.id) return;
-        const fromIndex = state.threadsCache.findIndex(t => t.id === state.dragSourceID);
-        const toIndex = state.threadsCache.findIndex(t => t.id === thread.id);
+        const fromIndex = state.threadsCache.findIndex((t) => t.id === state.dragSourceID);
+        const toIndex = state.threadsCache.findIndex((t) => t.id === thread.id);
         const [moved] = state.threadsCache.splice(fromIndex, 1);
         state.threadsCache.splice(toIndex, 0, moved);
         renderThreadList();
@@ -243,7 +260,7 @@ export async function switchThread(threadID) {
     if (threadID === state.currentThreadID || state.isProcessing) return;
 
     state.currentThreadID = threadID;
-    document.querySelectorAll('.thread-item.active').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.thread-item.active').forEach((el) => el.classList.remove('active'));
     document.querySelector(`.thread-item[data-id="${threadID}"]`)?.classList.add('active');
 
     syncCurrentThreadModel();
@@ -255,7 +272,7 @@ export async function switchThread(threadID) {
 
 async function persistThreadOrder() {
     try {
-        await window.go.app.App.ReorderThreads(state.threadsCache.map(t => t.id));
+        await window.go.app.App.ReorderThreads(state.threadsCache.map((t) => t.id));
     } catch (error) {
         console.error('更新线程顺序失败:', error);
     }
@@ -301,7 +318,9 @@ export function setupThreadUI() {
             renderThreadList();
         };
         dom.searchBtn.addEventListener('click', () => {
-            dom.searchContainer.classList.contains('search-open') ? closeSearch() : dom.searchContainer.classList.add('search-open');
+            dom.searchContainer.classList.contains('search-open')
+                ? closeSearch()
+                : dom.searchContainer.classList.add('search-open');
             dom.searchInput.focus();
         });
         dom.searchInput.addEventListener('input', () => {
@@ -325,7 +344,7 @@ export function handleThreadTitleUpdated(data) {
     const title = data?.title;
     if (!threadID || typeof title !== 'string' || title.trim() === '') return;
 
-    const thread = state.threadsCache.find(item => item.id === threadID);
+    const thread = state.threadsCache.find((item) => item.id === threadID);
     if (thread) {
         thread.title = title;
         renderThreadList();

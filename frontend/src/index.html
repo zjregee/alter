@@ -1,183 +1,402 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alter</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles/base.css">
-    <link rel="stylesheet" href="styles/sidebar.css">
-    <link rel="stylesheet" href="styles/main.css">
-    <link rel="stylesheet" href="styles/chat.css">
-    <link rel="stylesheet" href="styles/controls.css">
-    <link rel="stylesheet" href="styles/scrollbars.css">
-    <link rel="stylesheet" href="styles/thoughts.css">
-    <link rel="stylesheet" href="styles/feed.css">
-    <link rel="stylesheet" href="styles/markdown.css">
-</head>
-<body>
-    <div class="app-container">
-        <!-- 左侧边栏 -->
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <div class="view-switcher">
-                    <button class="view-btn active" data-view="chat">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 20v-6m0-4V4m0 6h6m-6 0H6"></path>
-                        </svg>
-                        <span>Chat</span>
-                    </button>
-                    <button class="view-btn" data-view="notifications">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M4 11a9 9 0 0 1 9 9"></path>
-                            <path d="M4 4a16 16 0 0 1 16 16"></path>
-                            <circle cx="5" cy="19" r="1"></circle>
-                        </svg>
-                        <span>Feed</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="sidebar-content">
-                <div class="view-content active" id="chat-view-sidebar">
-                    <div class="thread-list">
-                        <!-- 线程列表将通过 JavaScript 动态加载 -->
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Alter</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="styles/base.css" />
+        <link rel="stylesheet" href="styles/sidebar.css" />
+        <link rel="stylesheet" href="styles/main.css" />
+        <link rel="stylesheet" href="styles/chat.css" />
+        <link rel="stylesheet" href="styles/controls.css" />
+        <link rel="stylesheet" href="styles/scrollbars.css" />
+        <link rel="stylesheet" href="styles/thoughts.css" />
+        <link rel="stylesheet" href="styles/feed.css" />
+        <link rel="stylesheet" href="styles/settings.css" />
+        <link rel="stylesheet" href="styles/markdown.css" />
+    </head>
+    <body>
+        <div class="app-container">
+            <!-- 左侧边栏 -->
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <div class="view-switcher">
+                        <button class="view-btn active" data-view="chat">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path d="M12 20v-6m0-4V4m0 6h6m-6 0H6"></path>
+                            </svg>
+                            <span>Chat</span>
+                        </button>
+                        <button class="view-btn" data-view="notifications">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path d="M4 11a9 9 0 0 1 9 9"></path>
+                                <path d="M4 4a16 16 0 0 1 16 16"></path>
+                                <circle cx="5" cy="19" r="1"></circle>
+                            </svg>
+                            <span>Feed</span>
+                        </button>
                     </div>
-                    <div class="sidebar-actions">
-                        <button class="icon-btn search-btn" title="搜索">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="11" cy="11" r="8"></circle>
-                                <path d="m21 21-4.35-4.35"></path>
+                    <div class="settings-header" style="display: none">
+                        <button class="icon-btn back-btn" title="Back">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path d="M19 12H5"></path>
+                                <path d="M12 19l-7-7 7-7"></path>
                             </svg>
                         </button>
-                        <button class="icon-btn new-thread-btn" title="新建线程">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                            </svg>
-                        </button>
-                        <input class="thread-search" type="text" placeholder="Search threads..." aria-label="Search threads">
+                        <span>Settings</span>
                     </div>
                 </div>
-                <div class="view-content" id="notifications-view-sidebar">
-                    <div class="feed-topics-list">
-                        <!-- Feed topics will be loaded here -->
+
+                <div class="sidebar-content">
+                    <div class="view-content active" id="chat-view-sidebar">
+                        <div class="thread-list">
+                            <!-- 线程列表将通过 JavaScript 动态加载 -->
+                        </div>
+                        <div class="sidebar-actions">
+                            <button class="icon-btn config-btn" title="Settings">
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    <path
+                                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+                                    ></path>
+                                </svg>
+                            </button>
+                            <button class="icon-btn search-btn" title="Search">
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <path d="m21 21-4.35-4.35"></path>
+                                </svg>
+                            </button>
+                            <button class="icon-btn new-thread-btn" title="New Thread">
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                </svg>
+                            </button>
+                            <input
+                                class="thread-search"
+                                type="text"
+                                placeholder="Search threads..."
+                                aria-label="Search threads"
+                            />
+                        </div>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="sidebar-resizer" role="separator" aria-orientation="vertical"></div>
-
-        <!-- 右侧主内容区 -->
-        <div class="main-content">
-            <div class="view-content active" id="chat-view-main">
-                <div class="chat-messages">
-                    <!-- 消息内容将通过 JavaScript 动态加载 -->
-                </div>
-	                <div class="chat-input-container">
-	                    <div class="input-wrapper">
-	                        <textarea class="chat-input" placeholder="Type a message..." rows="3"></textarea>
-	                        <div class="input-actions">
-	                            <div class="workspace-switcher">
-	                                                                <button class="workspace-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
-	                                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-	                                                                        <path d="M3 7a2 2 0 0 1 2-2h3l2 2h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                                                                    </svg>
-                                                                    <span class="workspace-toggle-label">Workspace</span>
-                                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                                                    </svg>
-                                                                </button>
-	                                                            <div class="workspace-dropdown" aria-hidden="true">
-	                                                                <div class="workspace-controls">
-	                                                                    <div class="model-search workspace-search">
-	                                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-	                                                                            <circle cx="11" cy="11" r="8"></circle>
-	                                                                            <path d="m21 21-4.35-4.35"></path>
-	                                                                        </svg>
-	                                                                        <input class="workspace-search-input" type="text" placeholder="Search workspaces..." aria-label="Search workspaces">
-	                                                                    </div>
-	                                                                    <button class="workspace-select-btn" type="button" aria-label="Select directory">
-	                                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-	                                                                            <line x1="12" y1="5" x2="12" y2="19"></line>
-	                                                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-	                                                                        </svg>
-	                                                                    </button>
-	                                                                </div>
-	                                                                <div class="workspace-list" role="listbox"></div>
-	                                                            </div>
-	                                                        </div>
-                                                            <div class="model-switcher">
-                                                                <button class="model-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">
-                                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                                                        <path d="m12 3-1.9 4.8-4.8 1.9 4.8 1.9 1.9 4.8 1.9-4.8 4.8-1.9-4.8-1.9L12 3z"/>
-                                                                        <path d="M5 3v4"/>
-                                                                        <path d="M19 17v4"/>
-                                                                        <path d="M3 5h4"/>
-                                                                        <path d="M17 19h4"/>
-                                                                    </svg>
-                                                                    <span class="model-toggle-label">Select model</span>
-                                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                                                    </svg>
-                                                                </button>
-                                <div class="model-dropdown" aria-hidden="true">
-                                    <div class="model-search">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <circle cx="11" cy="11" r="8"></circle>
-                                            <path d="m21 21-4.35-4.35"></path>
-                                        </svg>
-                                        <input class="model-search-input" type="text" placeholder="Search models..." aria-label="Search models">
-                                    </div>
-                                    <div class="model-list" role="listbox"></div>
-                                </div>
-                            </div>
-                            <div class="send-cancel-stack">
-                                <button class="cancel-btn" type="button" aria-label="取消" hidden>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                        <rect x="6" y="6" width="12" height="12" rx="2"></rect>
-                                    </svg>
-                                </button>
-                                <button class="send-btn">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <line x1="22" y1="2" x2="11" y2="13"></line>
-                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                                    </svg>
-                                </button>
-                            </div>
+                    <div class="view-content" id="notifications-view-sidebar">
+                        <div class="feed-topics-list">
+                            <!-- Feed topics will be loaded here -->
+                        </div>
+                        <div class="sidebar-actions">
+                            <button class="icon-btn config-btn" title="Settings">
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    <path
+                                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+                                    ></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="view-content" id="config-view-sidebar">
+                        <div class="settings-sidebar-list">
+                            <button class="settings-item active" data-section="scheduler">
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                                </svg>
+                                <span>Scheduler</span>
+                            </button>
+                        </div>
+                        <div
+                            class="sidebar-actions"
+                            style="border-top: 1px solid var(--sidebar-border); min-height: 41px"
+                        >
+                            <!-- Placeholder to maintain bottom line consistency -->
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="view-content" id="notifications-view-main">
-                <div class="feed-articles-list">
-                    <!-- Feed articles will be loaded here -->
-                </div>
-                <div id="feed-detail-view" style="display: none;">
-                    <div class="feed-detail-nav">
-                        <button id="feed-back-btn" aria-label="Back">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M19 12H5"></path>
-                                <path d="M12 19l-7-7 7-7"></path>
-                            </svg>
-                            <span>Back</span>
-                        </button>
+
+            <div class="sidebar-resizer" role="separator" aria-orientation="vertical"></div>
+
+            <!-- 右侧主内容区 -->
+            <div class="main-content">
+                <div class="view-content active" id="chat-view-main">
+                    <div class="chat-messages">
+                        <!-- 消息内容将通过 JavaScript 动态加载 -->
                     </div>
-                    <div class="feed-detail-body">
-                        <h2 id="feed-detail-title"></h2>
-                        <div id="feed-detail-timestamp"></div>
-                        <div id="feed-detail-content" class="markdown-body"></div>
+                    <div class="chat-input-container">
+                        <div class="input-wrapper">
+                            <textarea class="chat-input" placeholder="Type a message..." rows="3"></textarea>
+                            <div class="input-actions">
+                                <div class="workspace-switcher">
+                                    <button
+                                        class="workspace-toggle"
+                                        type="button"
+                                        aria-haspopup="listbox"
+                                        aria-expanded="false"
+                                    >
+                                        <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path
+                                                d="M3 7a2 2 0 0 1 2-2h3l2 2h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                                            ></path>
+                                        </svg>
+                                        <span class="workspace-toggle-label">Workspace</span>
+                                        <svg
+                                            width="10"
+                                            height="10"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                    </button>
+                                    <div class="workspace-dropdown" aria-hidden="true">
+                                        <div class="workspace-controls">
+                                            <div class="model-search workspace-search">
+                                                <svg
+                                                    width="14"
+                                                    height="14"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                >
+                                                    <circle cx="11" cy="11" r="8"></circle>
+                                                    <path d="m21 21-4.35-4.35"></path>
+                                                </svg>
+                                                <input
+                                                    class="workspace-search-input"
+                                                    type="text"
+                                                    placeholder="Search workspaces..."
+                                                    aria-label="Search workspaces"
+                                                />
+                                            </div>
+                                            <button
+                                                class="workspace-select-btn"
+                                                type="button"
+                                                aria-label="Select directory"
+                                            >
+                                                <svg
+                                                    width="14"
+                                                    height="14"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                >
+                                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="workspace-list" role="listbox"></div>
+                                    </div>
+                                </div>
+                                <div class="model-switcher">
+                                    <button
+                                        class="model-toggle"
+                                        type="button"
+                                        aria-haspopup="listbox"
+                                        aria-expanded="false"
+                                    >
+                                        <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.6"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            aria-hidden="true"
+                                        >
+                                            <path
+                                                d="m12 3-1.9 4.8-4.8 1.9 4.8 1.9 1.9 4.8 1.9-4.8 4.8-1.9-4.8-1.9L12 3z"
+                                            />
+                                            <path d="M5 3v4" />
+                                            <path d="M19 17v4" />
+                                            <path d="M3 5h4" />
+                                            <path d="M17 19h4" />
+                                        </svg>
+                                        <span class="model-toggle-label">Select model</span>
+                                        <svg
+                                            width="12"
+                                            height="12"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                    </button>
+                                    <div class="model-dropdown" aria-hidden="true">
+                                        <div class="model-search">
+                                            <svg
+                                                width="14"
+                                                height="14"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <circle cx="11" cy="11" r="8"></circle>
+                                                <path d="m21 21-4.35-4.35"></path>
+                                            </svg>
+                                            <input
+                                                class="model-search-input"
+                                                type="text"
+                                                placeholder="Search models..."
+                                                aria-label="Search models"
+                                            />
+                                        </div>
+                                        <div class="model-list" role="listbox"></div>
+                                    </div>
+                                </div>
+                                <div class="send-cancel-stack">
+                                    <button class="cancel-btn" type="button" aria-label="Cancel" hidden>
+                                        <svg
+                                            width="12"
+                                            height="12"
+                                            viewBox="0 0 24 24"
+                                            fill="currentColor"
+                                            aria-hidden="true"
+                                        >
+                                            <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+                                        </svg>
+                                    </button>
+                                    <button class="send-btn">
+                                        <svg
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="view-content" id="notifications-view-main">
+                    <div class="feed-articles-list">
+                        <!-- Feed articles will be loaded here -->
+                    </div>
+                    <div id="feed-detail-view" style="display: none">
+                        <div class="feed-detail-nav">
+                            <button id="feed-back-btn" aria-label="Back">
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path d="M19 12H5"></path>
+                                    <path d="M12 19l-7-7 7-7"></path>
+                                </svg>
+                                <span>Back</span>
+                            </button>
+                        </div>
+                        <div class="feed-detail-body">
+                            <h2 id="feed-detail-title"></h2>
+                            <div id="feed-detail-timestamp"></div>
+                            <div id="feed-detail-content" class="markdown-body"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="view-content" id="config-view-main">
+                    <div class="settings-content active" id="scheduler-settings">
+                        <h2 class="settings-title">Scheduler</h2>
+                        <div class="scheduler-container">
+                            <div class="scheduler-empty">Loading tasks...</div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js" defer></script>
-    <script src="script.js" type="module"></script>
-</body>
+        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js" defer></script>
+        <script src="script.js" type="module"></script>
+    </body>
 </html>

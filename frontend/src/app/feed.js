@@ -29,7 +29,7 @@ export function handleFeedItemPushed(item) {
     if (topic !== state.currentFeedTopicId) return;
     let updated = false;
     if (item?.id) {
-        const existingIndex = state.feedArticlesCache.findIndex(article => article?.id === item.id);
+        const existingIndex = state.feedArticlesCache.findIndex((article) => article?.id === item.id);
         if (existingIndex !== -1) {
             state.feedArticlesCache[existingIndex] = item;
             updated = true;
@@ -57,7 +57,7 @@ export function renderFeedTopics() {
         dom.feedTopicsList.innerHTML = '<div class="feed-empty">暂无主题</div>';
         return;
     }
-    state.feedTopicsCache.forEach(topic => {
+    state.feedTopicsCache.forEach((topic) => {
         const topicEl = document.createElement('div');
         topicEl.className = 'feed-topic-item';
         topicEl.innerHTML = `<div class="thread-text"></div>`;
@@ -101,7 +101,7 @@ export function renderFeedArticles() {
         return;
     }
     dom.feedArticlesList.innerHTML = '';
-    state.feedArticlesCache.forEach(article => {
+    state.feedArticlesCache.forEach((article) => {
         const articleEl = document.createElement('div');
         articleEl.className = 'feed-article-item';
 

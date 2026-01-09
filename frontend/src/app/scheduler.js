@@ -141,7 +141,7 @@ function showRunDetail(run, allRuns) {
         </div>
         <div class="scheduler-modal-row">
             <div class="scheduler-modal-label">Error Output</div>
-            <div class="scheduler-modal-value" style="color: ${run.error ? 'var(--error-text)' : 'var(--text-tertiary)'}">${run.error || 'No error'}</div>
+            <div class="scheduler-modal-value" style="color: ${run.error ? 'var(--error-text)' : 'var(--text-secondary)'}">${run.error || 'No error'}</div>
         </div>
     `;
 

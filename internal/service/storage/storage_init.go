@@ -4,7 +4,6 @@ type initStorageFunc func()
 
 var initStorageFuncs = []initStorageFunc{
 	initWorkspaceInfos,
-	initFeedItems,
 }
 
 func initStorage() {

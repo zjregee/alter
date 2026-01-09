@@ -248,13 +248,27 @@ export async function loadFeedTopics() {
 
 export function updateGlobalUnreadDot() {
     const feedBtn = document.querySelector('.view-btn[data-view="notifications"]');
-    if (!feedBtn) return;
+    const settingsBackBtn = document.querySelector('.settings-header .back-btn');
+
+    if (!feedBtn && !settingsBackBtn) return;
 
     const totalUnread = Object.values(state.feedTopicsUnread).reduce((a, b) => a + b, 0);
-    if (totalUnread > 0) {
-        feedBtn.classList.add('has-unread');
-    } else {
-        feedBtn.classList.remove('has-unread');
+    const hasUnread = totalUnread > 0;
+
+    if (feedBtn) {
+        if (hasUnread) {
+            feedBtn.classList.add('has-unread');
+        } else {
+            feedBtn.classList.remove('has-unread');
+        }
+    }
+
+    if (settingsBackBtn) {
+        if (hasUnread) {
+            settingsBackBtn.classList.add('has-unread');
+        } else {
+            settingsBackBtn.classList.remove('has-unread');
+        }
     }
 }
 

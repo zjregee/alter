@@ -312,3 +312,22 @@
 .sidebar.is-collapsed .settings-header {
     justify-content: center;
 }
+
+/* Settings Back Button Notification Dot */
+.settings-header .back-btn {
+    position: relative;
+}
+
+.settings-header .back-btn .dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    border: none;
+    width: 6px;
+    height: 6px;
+    display: none;
+}
+
+.settings-header .back-btn.has-unread .dot {
+    display: block;
+}

@@ -354,10 +354,18 @@
 
 .history-item {
     display: grid;
-    grid-template-columns: 20px 140px 1fr auto;
+    grid-template-columns: auto auto 1fr auto;
+    gap: 0 12px;
     align-items: center;
-    padding: 6px 0;
+    padding: 6px 12px;
     font-size: 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+}
+
+.history-item:hover {
+    background-color: var(--panel-bg);
 }
 
 .history-status {
@@ -382,6 +390,8 @@
 .history-time {
     color: var(--text-primary);
     font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: center;
 }
 
 .history-error {
@@ -389,7 +399,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding-right: 12px;
 }
 
 .history-info {
@@ -454,4 +463,165 @@
     margin-top: 24px;
     padding-top: 16px;
     border-top: 1px solid var(--sidebar-border);
+}
+
+/* Animation for loading spinner */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
+/* --- Run Detail Modal --- */
+.scheduler-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.scheduler-modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.scheduler-modal {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    width: 500px;
+    max-width: 90%;
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    transform: translateY(20px);
+    transition: transform 0.2s ease;
+}
+
+.scheduler-modal-overlay.active .scheduler-modal {
+    transform: translateY(0);
+}
+
+.scheduler-modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--sidebar-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.scheduler-modal-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.scheduler-modal-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    margin-right: 12px;
+}
+
+.scheduler-modal-nav-btn {
+    background: none;
+    border: 1px solid var(--panel-border);
+    color: var(--text-tertiary);
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    transition: all 0.2s;
+}
+
+.scheduler-modal-nav-btn:hover:not(:disabled) {
+    color: var(--text-primary);
+    background-color: var(--panel-bg-alt);
+    border-color: var(--panel-border);
+}
+
+.scheduler-modal-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.scheduler-modal-nav-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.scheduler-modal-close {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.scheduler-modal-close:hover {
+    color: var(--text-primary);
+    background-color: var(--panel-bg-alt);
+}
+
+.scheduler-modal-body {
+    padding: 8px 20px 20px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.scheduler-modal-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.scheduler-modal-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.scheduler-modal-value {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background-color: var(--input-bg);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--panel-border);
+    word-break: break-all;
+    font-family: 'JetBrains Mono', monospace;
+    white-space: pre-wrap;
+}
+
+.scheduler-modal-value.status-running {
+    color: var(--accent);
+}
+.scheduler-modal-value.status-finished {
+    color: var(--success-text);
+}
+.scheduler-modal-value.status-failed {
+    color: var(--error-text);
 }

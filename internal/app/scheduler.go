@@ -25,6 +25,10 @@ func (a *App) TriggerSchedule(id string) error {
 	return scheduler.GetScheduler().TriggerSchedule(id)
 }
 
+func (a *App) ListScheduleRuns(scheduleID string) ([]*models.ScheduleRun, error) {
+	return scheduler.GetScheduler().GetScheduleRuns(scheduleID)
+}
+
 func (a *App) UpdateSchedule(id string, schedule *models.Schedule) error {
 	return scheduler.GetScheduler().UpdateSchedule(id, schedule)
 }

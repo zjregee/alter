@@ -1,4 +1,5 @@
 import { dom } from './dom.js';
+import { loadSchedules } from './scheduler.js';
 
 export function setupSettingsNavigation() {
     if (!dom.settingsSidebar) return;
@@ -21,5 +22,17 @@ export function setupSettingsNavigation() {
                 content.classList.toggle('active', content.id === `${section}-settings`);
             });
         }
+
+        // Load specific section data
+        if (section === 'scheduler') {
+            loadSchedules();
+        }
     });
+}
+
+export function onSettingsViewActivated() {
+    const activeItem = dom.settingsSidebar?.querySelector('.settings-item.active');
+    if (activeItem && activeItem.dataset.section === 'scheduler') {
+        loadSchedules();
+    }
 }

@@ -1,5 +1,6 @@
 import { dom } from './dom.js';
 import { loadFeedTopics } from './feed.js';
+import { onSettingsViewActivated } from './settings.js';
 
 let lastActiveView = 'chat';
 
@@ -64,5 +65,8 @@ function switchView(viewName) {
 
     if (viewName === 'notifications') {
         loadFeedTopics();
+    }
+    if (viewName === 'config') {
+        onSettingsViewActivated();
     }
 }

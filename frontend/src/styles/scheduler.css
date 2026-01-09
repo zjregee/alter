@@ -1,0 +1,457 @@
+/* Scheduler Styles - Clean, Minimal & Compact */
+
+/* Container & Layout */
+.scheduler-container {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    background-color: var(--app-bg);
+}
+
+.scheduler-empty {
+    padding: 32px;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    width: 100%;
+    align-self: center;
+}
+
+/* --- Sidebar (Left Pane) --- */
+.scheduler-sidebar {
+    width: 180px;
+    margin: 10px 4px 10px 4px;
+    border-radius: 12px;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.scheduler-list {
+    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.scheduler-list-item {
+    padding: 8px 12px;
+    margin: 2px 6px;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid transparent;
+}
+
+.scheduler-list-item:hover {
+    background-color: var(--panel-bg-alt);
+    border-color: var(--panel-border);
+}
+
+.scheduler-list-item.active {
+    background-color: var(--app-bg);
+    border-color: var(--panel-border);
+    color: var(--text-primary);
+}
+
+.scheduler-list-item-name {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.scheduler-list-item.active .scheduler-list-item-name {
+    color: var(--text-primary);
+}
+
+.scheduler-list-item-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+
+.scheduler-status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background-color: var(--text-tertiary);
+}
+
+.scheduler-status-dot.enabled {
+    background-color: var(--success-text);
+}
+
+/* --- Main Content (Right Pane) --- */
+.scheduler-main {
+    flex: 1;
+    overflow-y: hidden; /* Prevent double scrollbars, manage inside detail view */
+    padding: 0;
+    background-color: transparent;
+    display: flex;
+    flex-direction: column;
+}
+
+.scheduler-detail-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+/* Header Area */
+.scheduler-main-header {
+    padding: 20px 12px 0 12px;
+    background-color: transparent;
+    display: flex;
+    flex-direction: column;
+}
+
+.scheduler-header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.scheduler-detail-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    line-height: 24px; /* Match button height for better alignment */
+}
+
+.scheduler-detail-status {
+    font-size: 10px;
+    padding: 2px 12px;
+    border-radius: 12px;
+    background-color: var(--panel-bg);
+    color: var(--text-tertiary);
+    font-weight: 500;
+    border: 1px solid var(--panel-border);
+    line-height: 1.4;
+}
+
+.scheduler-detail-status.enabled {
+    background-color: rgba(91, 214, 142, 0.1);
+    color: var(--success-text);
+    border-color: rgba(91, 214, 142, 0.2);
+}
+
+.scheduler-detail-meta {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+.scheduler-detail-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.scheduler-detail-meta-item svg {
+    width: 12px;
+    height: 12px;
+    opacity: 0.7;
+}
+
+/* Actions */
+.scheduler-actions {
+    display: flex;
+    gap: 10px;
+    padding-top: 0;
+    flex-shrink: 0;
+    margin-left: 16px;
+}
+
+.scheduler-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid var(--panel-border);
+    background-color: transparent;
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.scheduler-action-btn svg {
+    width: 12px;
+    height: 12px;
+}
+
+.scheduler-action-btn:hover {
+    background-color: var(--panel-bg);
+    color: var(--text-primary);
+}
+
+.scheduler-action-btn.primary {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: white;
+}
+
+.scheduler-action-btn.primary:hover {
+    background-color: var(--accent-strong);
+}
+
+/* Content Body */
+.scheduler-content-body {
+    padding: 12px 12px 16px 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto; /* Allow scrolling for whole body if needed, but history flex might override */
+}
+
+/* Sections */
+.scheduler-section {
+    margin-bottom: 12px;
+    flex-shrink: 0; /* Workflow config shouldn't shrink */
+}
+
+.scheduler-section.history-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 200px; /* Minimum height for history */
+    margin-bottom: 0;
+}
+
+.scheduler-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--sidebar-border);
+    min-height: 29px; /* Ensure height matches button height */
+}
+
+.scheduler-section-header .scheduler-section-title {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.scheduler-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--sidebar-border);
+}
+
+/* Config List (Consistent Indent) */
+.scheduler-config-grid {
+    display: flex;
+    flex-direction: column;
+}
+
+.scheduler-config-item {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    align-items: baseline;
+    padding: 6px 0;
+}
+
+.config-label {
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+.config-value {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.config-value.code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Prompt Block */
+.scheduler-prompt-block {
+    padding: 6px 0 0 0;
+}
+
+.scheduler-prompt-block .config-label {
+    margin-bottom: 12px;
+    display: block;
+}
+
+.scheduler-prompt-content {
+    background-color: var(--input-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+/* History List (Compact Timeline) */
+.scheduler-history-list {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow-y: auto; /* Scroll history independently if content is large */
+}
+
+.scheduler-history-list:has(.scheduler-empty) {
+    justify-content: center;
+}
+
+/* Run Timers */
+.run-timers {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    flex-shrink: 0;
+    font-size: 12px;
+}
+
+.run-timer-item {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.run-timer-item .timer-label {
+    color: var(--text-tertiary);
+}
+
+.run-timer-item .timer-value {
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.history-item {
+    display: grid;
+    grid-template-columns: 20px 140px 1fr auto;
+    align-items: center;
+    padding: 6px 0;
+    font-size: 12px;
+}
+
+.history-status {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.history-status.running {
+    background-color: var(--accent);
+}
+.history-status.finished {
+    background-color: var(--success-text);
+}
+.history-status.failed {
+    background-color: var(--error-text);
+}
+.history-status.pending {
+    background-color: var(--text-tertiary);
+}
+
+.history-time {
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.history-error {
+    color: var(--error-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 12px;
+}
+
+.history-info {
+    color: var(--text-tertiary);
+}
+
+.history-duration {
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+/* Edit Form */
+.scheduler-edit-form {
+    padding: 16px 20px;
+}
+
+.edit-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.edit-form-group {
+    margin-bottom: 12px;
+}
+
+.edit-form-label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.edit-form-input,
+.edit-form-textarea {
+    width: 100%;
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: var(--text-primary);
+    font-size: 12px;
+    outline: none;
+}
+
+.edit-form-input:focus,
+.edit-form-textarea:focus {
+    border-color: var(--accent);
+}
+
+.edit-form-textarea {
+    min-height: 160px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.edit-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--sidebar-border);
+}

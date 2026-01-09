@@ -621,7 +621,7 @@ func (a *Agent) generate(ctx context.Context, onThinking func(string), onContent
 
 	a.history = sanitizeHistory(a.config.WorkDir, a.history)
 
-	cm, err := getModel(ctx, a.config.ModelID)
+	cm, err := GetModel(ctx, a.config.ModelID)
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, err

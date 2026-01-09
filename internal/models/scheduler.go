@@ -22,6 +22,7 @@ type ScheduleRun struct {
 	ScheduleID string `json:"schedule_id"`
 
 	Status     WorkflowState `json:"status"`
+	Summary    string        `json:"summary,omitempty"`
 	Error      string        `json:"error,omitempty"`
 	RetryCount int           `json:"retry_count"`
 	StartedAt  string        `json:"started_at"`

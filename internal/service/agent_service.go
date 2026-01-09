@@ -494,7 +494,7 @@ func GenerateThreadTitle(ctx context.Context, messages []*schema.Message) (strin
 		},
 	}
 
-	model, err := getModel(ctx, getDefaultModelInfo().ID)
+	model, err := GetModel(ctx, getDefaultModelInfo().ID)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate thread title: %w", err)
 	}

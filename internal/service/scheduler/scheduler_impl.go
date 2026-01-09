@@ -5,9 +5,13 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
+	"github.com/cloudwego/eino/schema"
+
 	"github.com/zjregee/alter/internal/models"
+	"github.com/zjregee/alter/internal/service"
 	"github.com/zjregee/alter/internal/service/storage"
 	"github.com/zjregee/alter/internal/service/workflow"
 	"github.com/zjregee/alter/internal/utils"
@@ -174,14 +178,27 @@ func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *mod
 			executeCtx, cancel = context.WithTimeout(s.ctx, time.Duration(schedule.TimeoutSeconds)*time.Second)
 		}
 
+		execResult := &workflow.ExecutionResult{}
+		executeCtx = workflow.WithExecutionResult(executeCtx, execResult)
+
 		err := s.executor.Execute(executeCtx, wf)
 		if cancel != nil {
 			cancel()
 		}
 		if err == nil {
+			summaryCtx, summaryCancel := context.WithTimeout(s.ctx, 30*time.Second)
+			defer summaryCancel()
+
+			summary, sumErr := s.generateSummary(summaryCtx, schedule, execResult)
+			if sumErr != nil {
+				utils.GetLogger().Printf("Failed to generate summary for schedule %s: %v", schedule.ID, sumErr)
+			} else {
+				s.activeMu.Lock()
+				run.Summary = summary
+				s.activeMu.Unlock()
+			}
 			return nil
 		}
-
 		lastErr = err
 
 		if err := storage.SaveScheduleRun(run); err != nil {
@@ -190,6 +207,52 @@ func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *mod
 	}
 
 	return fmt.Errorf("failed after %d attempts: %w", maxRetries+1, lastErr)
+}
+
+func (s *Scheduler) generateSummary(ctx context.Context, schedule *models.Schedule, result *workflow.ExecutionResult) (string, error) {
+	if result == nil || len(result.Record) == 0 {
+		return "", nil
+	}
+
+	var sb strings.Builder
+	for _, msg := range result.Record {
+		switch m := msg.(type) {
+		case models.AgentThought:
+			if m.Content != "" {
+				fmt.Fprintf(&sb, "Thought: %s\n", m.Content)
+			}
+		case models.AgentExecutingToolFinish:
+			fmt.Fprintf(&sb, "Tool %s executed\n", m.Name)
+		case models.AgentError:
+			fmt.Fprintf(&sb, "Error: %s\n", m.Error)
+		}
+	}
+
+	logContent := sb.String()
+	if logContent == "" {
+		return "", nil
+	}
+
+	prompt := fmt.Sprintf("Based on the execution log below, provide a concise summary of the workflow's actions and results. Focus on the key steps taken and the final outcome. The summary should be informative but brief. Do not include any reasoning or prefixes.\n\nLog:\n%s", logContent)
+
+	model, err := service.GetModel(ctx, schedule.WorkflowConfig.ModelID)
+	if err != nil {
+		return "", err
+	}
+
+	messages := []*schema.Message{
+		{
+			Role:    schema.User,
+			Content: prompt,
+		},
+	}
+
+	response, err := model.Generate(ctx, messages)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(response.Content), nil
 }
 
 func (s *Scheduler) loadSchedules() error {

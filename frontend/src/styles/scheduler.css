@@ -314,6 +314,9 @@
     color: var(--text-secondary);
     line-height: 1.5;
     white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 240px;
+    overflow-y: auto;
 }
 
 /* History List (Compact Timeline) */

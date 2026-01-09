@@ -193,7 +193,7 @@ func isModelAvailable(modelID string) bool {
 	return ok
 }
 
-func getModel(ctx context.Context, modelID string) (model.ToolCallingChatModel, error) {
+func GetModel(ctx context.Context, modelID string) (model.ToolCallingChatModel, error) {
 	config, ok := availableModels[modelID]
 	if !ok {
 		return nil, fmt.Errorf("model not found: %s", modelID)

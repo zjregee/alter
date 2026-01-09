@@ -117,6 +117,16 @@ function showRunDetail(run, allRuns) {
             <div class="scheduler-modal-label">Status</div>
             <div class="scheduler-modal-value ${statusColorClass}">${run.status}</div>
         </div>
+        ${
+            run.summary
+                ? `
+        <div class="scheduler-modal-row">
+            <div class="scheduler-modal-label">Summary</div>
+            <div class="scheduler-modal-value">${run.summary}</div>
+        </div>
+        `
+                : ''
+        }
         <div class="scheduler-modal-row">
             <div class="scheduler-modal-label">Started At</div>
             <div class="scheduler-modal-value">${run.started_at ? new Date(run.started_at).toLocaleString() : '-'}</div>
@@ -131,7 +141,7 @@ function showRunDetail(run, allRuns) {
         </div>
         <div class="scheduler-modal-row">
             <div class="scheduler-modal-label">Error Output</div>
-            <div class="scheduler-modal-value" style="min-height: 60px; color: ${run.error ? 'var(--error-text)' : 'var(--text-tertiary)'}">${run.error || 'No error'}</div>
+            <div class="scheduler-modal-value" style="color: ${run.error ? 'var(--error-text)' : 'var(--text-tertiary)'}">${run.error || 'No error'}</div>
         </div>
     `;
 
@@ -409,6 +419,9 @@ async function loadRunHistory(scheduleId, container) {
             let statusClass = run.status; // running, finished, failed, pending
             const isRunning = statusClass === 'running' || statusClass === 'pending';
 
+            const infoContent = run.error || '';
+            const infoClass = run.error ? 'history-error' : 'history-info';
+
             const durationContent = run.ended_at
                 ? ((new Date(run.ended_at) - new Date(run.started_at)) / 1000).toFixed(1) + 's'
                 : isRunning
@@ -422,8 +435,8 @@ async function loadRunHistory(scheduleId, container) {
             runEl.innerHTML = `
                 <div class="history-status ${statusClass}" title="${run.status}"></div>
                 <div class="history-time">${formatFeedTimestamp(run.started_at)}</div>
-                <div class="${run.error ? 'history-error' : 'history-info'}">
-                    ${run.error ? run.error : ''}
+                <div class="${infoClass}">
+                    ${infoContent}
                 </div>
                 <div class="history-duration" style="display: flex; justify-content: flex-end; align-items: center; min-width: 40px;">
                     ${durationContent}

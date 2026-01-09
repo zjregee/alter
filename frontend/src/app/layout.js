@@ -7,6 +7,7 @@ export function setupSidebarResizer() {
         const startX = e.clientX;
         const startWidth = dom.sidebar.getBoundingClientRect().width;
         const onMouseMove = (moveEvent) => {
+            if (dom.sidebar.classList.contains('is-collapsed')) return;
             const nextWidth = Math.min(360, Math.max(180, startWidth + (moveEvent.clientX - startX)));
             dom.sidebar.style.width = `${Math.round(nextWidth)}px`;
         };
@@ -20,5 +21,15 @@ export function setupSidebarResizer() {
         document.addEventListener('mouseup', onMouseUp);
         document.body.style.cursor = 'col-resize';
         document.body.style.userSelect = 'none';
+    });
+}
+
+export function setupSidebarToggle() {
+    if (!dom.sidebarToggles || !dom.sidebar) return;
+
+    dom.sidebarToggles.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            dom.sidebar.classList.toggle('is-collapsed');
+        });
     });
 }

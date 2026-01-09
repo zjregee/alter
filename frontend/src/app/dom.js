@@ -10,6 +10,7 @@ export const dom = {
     searchBtn: document.querySelector('.search-btn'),
     searchContainer: document.querySelector('#chat-view-sidebar .sidebar-actions'),
     sidebar: document.querySelector('.sidebar'),
+    sidebarToggles: document.querySelectorAll('.sidebar-toggle'),
     sidebarResizer: document.querySelector('.sidebar-resizer'),
     workspaceSwitcher: document.querySelector('.workspace-switcher'),
     workspaceToggle: document.querySelector('.workspace-toggle'),

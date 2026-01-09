@@ -1,7 +1,7 @@
 import { dom } from './dom.js';
 import { state } from './state.js';
 import { handleFeedItemPushed, setupFeedHandlers, loadFeedTopics, updateGlobalUnreadDot } from './feed.js';
-import { setupSidebarResizer } from './layout.js';
+import { setupSidebarResizer, setupSidebarToggle } from './layout.js';
 import { setThreadRefresher, handleAgentMessage } from './chat/agent.js';
 import { setupActionMenuListeners } from './chat/actions.js';
 import { setupChatInputHandlers } from './chat/input.js';
@@ -26,6 +26,7 @@ export function initializeApp() {
     setupModelHandlers();
     setupActionMenuListeners();
     setupSidebarResizer();
+    setupSidebarToggle();
     setupFeedHandlers();
     setupSettingsNavigation();
 

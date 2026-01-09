@@ -5,6 +5,11 @@
     display: flex;
     flex-direction: column;
     border-right: 1px solid var(--sidebar-border);
+    transition: width 0.2s ease;
+}
+
+.sidebar.is-collapsed {
+    width: 60px !important;
 }
 
 .sidebar-resizer {
@@ -21,6 +26,16 @@
 .sidebar-header {
     padding: 8px;
     border-bottom: 1px solid var(--sidebar-border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sidebar.is-collapsed .sidebar-header {
+    flex-direction: column;
+    padding: 8px 4px;
+    gap: 8px;
+    align-items: center;
 }
 
 .view-switcher {
@@ -29,6 +44,14 @@
     background-color: var(--app-bg);
     border-radius: 8px;
     padding: 4px;
+    flex: 1;
+    min-width: 0;
+}
+
+.sidebar.is-collapsed .view-switcher {
+    flex-direction: column;
+    background-color: transparent;
+    padding: 0;
 }
 
 .view-btn {
@@ -62,6 +85,15 @@
 .view-btn svg {
     width: 14px;
     height: 14px;
+    flex-shrink: 0;
+}
+
+.sidebar.is-collapsed .view-btn span {
+    display: none;
+}
+
+.sidebar.is-collapsed .view-btn {
+    padding: 8px;
 }
 
 .sidebar-content {
@@ -71,6 +103,13 @@
     min-height: 0;
 }
 
+/* Allow sidebar actions to be visible but modified in collapsed state */
+.sidebar.is-collapsed .thread-list,
+.sidebar.is-collapsed .feed-topics-list,
+.sidebar.is-collapsed .settings-sidebar-list {
+    display: none;
+}
+
 .sidebar-actions {
     position: relative;
     display: flex;
@@ -78,6 +117,22 @@
     align-items: center;
     padding: 6px 12px;
     border-top: 1px solid var(--sidebar-border);
+    margin-top: auto;
+}
+
+.sidebar.is-collapsed .sidebar-actions {
+    flex-direction: column;
+    padding: 8px 0;
+    justify-content: center;
+}
+
+.sidebar.is-collapsed .sidebar-actions .thread-search {
+    display: none;
+}
+
+.sidebar.is-collapsed .sidebar-actions .icon-btn {
+    width: 32px;
+    height: 32px;
 }
 
 .icon-btn {
@@ -248,4 +303,12 @@
     flex: 1;
     overflow-y: auto;
     padding: 8px;
+}
+
+/* Adjustments for Settings Header in collapsed state */
+.sidebar.is-collapsed .settings-header span {
+    display: none;
+}
+.sidebar.is-collapsed .settings-header {
+    justify-content: center;
 }

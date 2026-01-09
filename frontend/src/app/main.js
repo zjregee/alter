@@ -16,6 +16,7 @@ import {
 } from './threads.js';
 import { setupViewSwitcher } from './view.js';
 import { setupSettingsNavigation } from './settings.js';
+import { handleSchedulerRunUpdate, setupSchedulerHandlers } from './scheduler.js';
 
 export function initializeApp() {
     setThreadRefresher(() => loadThreads(false));
@@ -29,6 +30,7 @@ export function initializeApp() {
     setupSidebarToggle();
     setupFeedHandlers();
     setupSettingsNavigation();
+    setupSchedulerHandlers();
 
     setupWorkspaceToggle();
     setupModelToggle();
@@ -88,4 +90,5 @@ function registerRuntimeEvents() {
     window.runtime.EventsOn('agent:messages_truncated', handleMessagesTruncated);
     window.runtime.EventsOn('feed:item_pushed', handleFeedItemPushed);
     window.runtime.EventsOn('thread:title_updated', handleThreadTitleUpdated);
+    window.runtime.EventsOn('scheduler:run_updated', handleSchedulerRunUpdate);
 }

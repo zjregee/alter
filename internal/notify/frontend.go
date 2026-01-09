@@ -48,3 +48,11 @@ func EmitFeedItemPushed(ctx context.Context, item *models.FeedItem) {
 
 	runtime.EventsEmit(ctx, "feed:item_pushed", item)
 }
+
+func EmitSchedulerRunUpdated(ctx context.Context, run *models.ScheduleRun) {
+	if ctx == nil || run == nil {
+		return
+	}
+
+	runtime.EventsEmit(ctx, "scheduler:run_updated", run)
+}

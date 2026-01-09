@@ -9,6 +9,24 @@ export function setupSchedulerHandlers() {
     // Setup global handlers if needed
 }
 
+export function handleSchedulerRunUpdate(event) {
+    if (!event || !event.schedule_id) return;
+
+    // Check if we are on the scheduler page and it is visible
+    const schedulerSettings = document.querySelector('#scheduler-settings');
+    if (!schedulerSettings || !schedulerSettings.classList.contains('active')) {
+        return;
+    }
+
+    // If the update is for the currently viewed schedule, refresh its history
+    if (event.schedule_id === currentScheduleId) {
+        const historyContainer = document.querySelector('.scheduler-history-list');
+        if (historyContainer) {
+            loadRunHistory(currentScheduleId, historyContainer);
+        }
+    }
+}
+
 export async function loadSchedules() {
     const container = document.querySelector('.scheduler-container');
     if (!container) return;

@@ -93,7 +93,7 @@ export function renderFeedTopics() {
     if (!dom.feedTopicsList) return;
     dom.feedTopicsList.innerHTML = '';
     if (state.feedTopicsLoading) {
-        dom.feedTopicsList.innerHTML = '<div class="feed-empty">正在加载主题...</div>';
+        dom.feedTopicsList.innerHTML = '<div class="feed-empty">Loading topics...</div>';
         return;
     }
     if (state.feedTopicsError) {
@@ -101,7 +101,7 @@ export function renderFeedTopics() {
         return;
     }
     if (state.feedTopicsCache.length === 0) {
-        dom.feedTopicsList.innerHTML = '<div class="feed-empty">暂无主题</div>';
+        dom.feedTopicsList.innerHTML = '<div class="feed-empty">No topics</div>';
         return;
     }
     state.feedTopicsCache.forEach((topic) => {
@@ -138,21 +138,30 @@ export function renderFeedTopics() {
 export function renderFeedArticles() {
     if (!dom.feedArticlesList) return;
     if (state.feedArticlesLoading) {
-        dom.feedArticlesList.innerHTML = '<div class="feed-empty">正在加载内容...</div>';
+        dom.feedArticlesList.classList.add('is-empty');
+        dom.feedArticlesList.innerHTML = '<div class="feed-empty">Loading articles...</div>';
         return;
     }
     if (!state.currentFeedTopicId) {
-        dom.feedArticlesList.innerHTML = '<div class="feed-empty">选择一个主题以查看内容。</div>';
+        dom.feedArticlesList.classList.add('is-empty');
+        dom.feedArticlesList.innerHTML = `<div class="feed-empty">
+            <div class="chat-empty-title">Select a Topic</div>
+            <div class="chat-empty-sub">Articles will be shown here once you select a topic from the left.</div>
+        </div>`;
         return;
     }
     if (state.feedArticlesError) {
+        dom.feedArticlesList.classList.add('is-empty');
         dom.feedArticlesList.innerHTML = `<div class="feed-empty">${state.feedArticlesError}</div>`;
         return;
     }
     if (state.feedArticlesCache.length === 0) {
-        dom.feedArticlesList.innerHTML = '<div class="feed-empty">暂无内容</div>';
+        dom.feedArticlesList.classList.add('is-empty');
+        dom.feedArticlesList.innerHTML = '<div class="feed-empty">No articles for this topic.</div>';
         return;
     }
+
+    dom.feedArticlesList.classList.remove('is-empty');
     dom.feedArticlesList.innerHTML = '';
     state.feedArticlesCache.forEach((article) => {
         const articleEl = document.createElement('div');
@@ -165,7 +174,7 @@ export function renderFeedArticles() {
         headerEl.className = 'feed-article-header';
         const titleEl = document.createElement('h2');
         titleEl.className = 'feed-article-title';
-        titleEl.textContent = article?.title || '未命名';
+        titleEl.textContent = article?.title || 'Untitled';
         const timestampEl = document.createElement('span');
         timestampEl.className = 'feed-article-timestamp';
         timestampEl.textContent = formatFeedTimestamp(article?.created_at);
@@ -200,7 +209,7 @@ export function renderFeedArticles() {
                 }
             }
 
-            if (dom.feedDetailTitle) dom.feedDetailTitle.textContent = article?.title || '未命名';
+            if (dom.feedDetailTitle) dom.feedDetailTitle.textContent = article?.title || 'Untitled';
             if (dom.feedDetailTimestamp) dom.feedDetailTimestamp.textContent = formatFeedTimestamp(article?.created_at);
             renderFeedDetailMarkdown(article?.content || '');
             if (dom.feedArticlesList) dom.feedArticlesList.style.display = 'none';
@@ -213,7 +222,7 @@ export function renderFeedArticles() {
 export async function loadFeedTopics() {
     if (!window.go?.app?.App?.ListFeedTopicStatuses) {
         state.feedTopicsCache = [];
-        state.feedTopicsError = 'Feed 暂不可用';
+        state.feedTopicsError = 'Feed is not available';
         renderFeedTopics();
         return;
     }
@@ -230,9 +239,9 @@ export async function loadFeedTopics() {
                 : (state.currentFeedTopicId = '');
         }
     } catch (error) {
-        console.error('加载Feed主题失败:', error);
+        console.error('Failed to load feed topics:', error);
         state.feedTopicsCache = [];
-        state.feedTopicsError = '加载Feed主题失败';
+        state.feedTopicsError = 'Failed to load feed topics';
     }
     state.feedTopicsLoading = false;
     renderFeedTopics();
@@ -284,7 +293,7 @@ async function loadFeedArticles(topic) {
     if (!window.go?.app?.App?.LoadFeedTopic) {
         state.feedArticlesCache = [];
         state.feedArticlesLoading = false;
-        state.feedArticlesError = 'Feed 暂不可用';
+        state.feedArticlesError = 'Feed is not available';
         renderFeedArticles();
         return;
     }
@@ -298,9 +307,9 @@ async function loadFeedArticles(topic) {
         state.feedArticlesCache = Array.isArray(items) ? items : [];
     } catch (error) {
         if (requestToken !== state.feedArticlesRequestToken) return;
-        console.error('加载Feed内容失败:', error);
+        console.error('Failed to load feed articles:', error);
         state.feedArticlesCache = [];
-        state.feedArticlesError = '加载Feed内容失败';
+        state.feedArticlesError = 'Failed to load feed articles';
     }
     if (requestToken !== state.feedArticlesRequestToken) return;
     state.feedArticlesLoading = false;

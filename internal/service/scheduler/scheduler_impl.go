@@ -11,6 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/zjregee/alter/internal/models"
+	"github.com/zjregee/alter/internal/notify"
 	"github.com/zjregee/alter/internal/service"
 	"github.com/zjregee/alter/internal/service/storage"
 	"github.com/zjregee/alter/internal/service/workflow"
@@ -106,6 +107,7 @@ func (s *Scheduler) executeSchedule(schedule *models.Schedule) {
 		utils.GetLogger().Printf("Failed to save schedule run: %v", err)
 		return
 	}
+	notify.EmitSchedulerRunUpdated(s.ctx, run)
 
 	s.activeMu.Lock()
 	s.activeRuns[run.ID] = run
@@ -126,6 +128,7 @@ func (s *Scheduler) executeSchedule(schedule *models.Schedule) {
 	if err := storage.SaveScheduleRun(run); err != nil {
 		utils.GetLogger().Printf("Failed to save schedule run status Running: %v", err)
 	}
+	notify.EmitSchedulerRunUpdated(s.ctx, run)
 
 	err := s.executeScheduleWithRetry(schedule, run)
 
@@ -145,6 +148,7 @@ func (s *Scheduler) executeSchedule(schedule *models.Schedule) {
 		utils.GetLogger().Printf("Failed to save schedule run %s: %v", run.ID, err)
 		return
 	}
+	notify.EmitSchedulerRunUpdated(s.ctx, run)
 }
 
 func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *models.ScheduleRun) error {

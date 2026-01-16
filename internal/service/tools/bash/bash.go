@@ -24,6 +24,7 @@ var allowedCommands = map[string]struct{}{
 	"tail": {},
 	"sed":  {},
 	"awk":  {},
+	"git":  {},
 }
 
 func validateAllowedCommand(command string) error {

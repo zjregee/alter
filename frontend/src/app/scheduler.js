@@ -270,13 +270,11 @@ function renderSchedulerDetail() {
 
     container.innerHTML = `
         <div class="scheduler-main-header">
-            <div class="scheduler-header-top">
-                <div class="scheduler-detail-name">
-                    ${schedule.name || 'Untitled Task'}
-                    <span class="scheduler-detail-status ${schedule.enabled ? 'enabled' : ''}">
-                        ${schedule.enabled ? 'Active' : 'Disabled'}
-                    </span>
-                </div>
+            <div class="scheduler-detail-name">${schedule.name || 'Untitled Task'}</div>
+            <div class="scheduler-header-controls">
+                <span class="scheduler-detail-status ${schedule.enabled ? 'enabled' : ''}">
+                    ${schedule.enabled ? 'Active' : 'Disabled'}
+                </span>
                 <div class="scheduler-actions">
                     <button class="scheduler-action-btn" id="toggle-schedule-btn">
                         ${schedule.enabled ? 'Disable' : 'Enable'}
@@ -310,6 +308,18 @@ function renderSchedulerDetail() {
                         <div class="config-value code">${wf.work_dir || 'default'}</div>
                     </div>
                 </div>
+                ${
+                    wf.pre_hook && wf.pre_hook.length > 0
+                        ? `
+                <div class="scheduler-hook-block">
+                    <div class="config-label">Pre-Hook Commands</div>
+                    <div class="scheduler-hook-list">
+                        ${wf.pre_hook.map((cmd, idx) => `<div class="scheduler-hook-item"><span class="hook-index">${idx + 1}.</span><span class="hook-command">${cmd}</span></div>`).join('')}
+                    </div>
+                </div>
+                `
+                        : ''
+                }
                 <div class="scheduler-prompt-block">
                     <div class="config-label">Prompt</div>
                     <div class="scheduler-prompt-content">${wf.prompt || ''}</div>
@@ -349,6 +359,7 @@ function renderSchedulerDetail() {
 
 function renderEditForm(container, schedule) {
     const wf = schedule.workflow_config || {};
+    const preHookCommands = wf.pre_hook || [];
 
     container.innerHTML = `
         <div class="scheduler-main-header">
@@ -378,6 +389,11 @@ function renderEditForm(container, schedule) {
                     <label class="edit-form-label">Work Directory</label>
                     <input type="text" class="edit-form-input" id="edit-workdir" value="${wf.work_dir || ''}" placeholder="Absolute path">
                 </div>
+            </div>
+
+            <div class="edit-form-group">
+                <label class="edit-form-label">Pre-Hook Commands <span style="color: var(--text-tertiary); font-weight: 400;">(One per line, executed before workflow)</span></label>
+                <textarea class="edit-form-textarea" id="edit-prehook" placeholder="git pull&#10;npm install&#10;./build.sh" style="min-height: 100px;">${preHookCommands.join('\n')}</textarea>
             </div>
 
             <div class="edit-form-group">
@@ -553,6 +569,13 @@ async function handleUpdate(originalSchedule) {
     const model = document.getElementById('edit-model').value;
     const workdir = document.getElementById('edit-workdir').value;
     const prompt = document.getElementById('edit-prompt').value;
+    const prehookText = document.getElementById('edit-prehook').value;
+
+    // Parse pre-hook commands: split by newlines, trim, and filter out empty lines
+    const preHookCommands = prehookText
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
 
     const updated = {
         ...originalSchedule,
@@ -562,7 +585,8 @@ async function handleUpdate(originalSchedule) {
             ...originalSchedule.workflow_config,
             model_id: model,
             work_dir: workdir,
-            prompt: prompt
+            prompt: prompt,
+            pre_hook: preHookCommands.length > 0 ? preHookCommands : undefined
         }
     };
 

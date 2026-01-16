@@ -1,6 +1,8 @@
 package usage
 
-import "time"
+import (
+	"time"
+)
 
 type TokenSnapshot struct {
 	SessionTokens     *int               `json:"sessionTokens"`

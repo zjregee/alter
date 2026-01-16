@@ -20,6 +20,7 @@
         <link rel="stylesheet" href="styles/feed.css" />
         <link rel="stylesheet" href="styles/settings.css" />
         <link rel="stylesheet" href="styles/scheduler.css" />
+        <link rel="stylesheet" href="styles/usage.css" />
         <link rel="stylesheet" href="styles/markdown.css" />
     </head>
     <body>
@@ -197,6 +198,12 @@
                                     <line x1="3" y1="10" x2="21" y2="10"></line>
                                 </svg>
                                 <span>Scheduler</span>
+                            </button>
+                            <button class="settings-item" data-section="usage">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M4 16h4v4H4v-4zm6-6h4v10h-4V10zm6-6h4v16h-4V4z" />
+                                </svg>
+                                <span>Usage</span>
                             </button>
                         </div>
                         <div
@@ -431,12 +438,18 @@
                             <div class="scheduler-empty">Loading tasks...</div>
                         </div>
                     </div>
+                    <div class="settings-content" id="usage-settings">
+                        <div class="usage-container">
+                            <div class="usage-empty">Loading usage data...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
         <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
         <script src="script.js" type="module"></script>
     </body>
 </html>

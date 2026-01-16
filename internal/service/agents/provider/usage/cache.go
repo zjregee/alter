@@ -5,26 +5,24 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
-	"github.com/google/uuid"
+	"github.com/zjregee/alter/internal/utils"
 )
 
-// Cache holds the cached usage data.
 type Cache struct {
 	Version        int                         `json:"version"`
 	LastScanUnixMs int64                       `json:"lastScanUnixMs"`
 	Files          map[string]FileUsage        `json:"files"`
-	Days           map[string]map[string][]int `json:"days"` // dayKey -> model -> packed usage
+	Days           map[string]map[string][]int `json:"days"`
 }
 
-// FileUsage represents the usage data for a single log file.
 type FileUsage struct {
 	MtimeUnixMs int64                       `json:"mtimeUnixMs"`
 	Size        int64                       `json:"size"`
 	Days        map[string]map[string][]int `json:"days"`
 }
 
-// NewCache creates a new empty cache.
 func NewCache() *Cache {
 	return &Cache{
 		Version: 1,
@@ -41,7 +39,11 @@ func defaultCacheRoot() (string, error) {
 	return filepath.Join(cacheDir, "Alter", "ccusage-min"), nil
 }
 
-func cacheFileURL(provider string, cacheRoot string) (string, error) {
+func cacheFilePath(provider string, cacheRoot string) (string, error) {
+	if provider == "" || strings.ContainsAny(provider, "/\\") {
+		return "", fmt.Errorf("invalid provider name: %s", provider)
+	}
+
 	var root string
 	var err error
 	if cacheRoot != "" {
@@ -56,24 +58,23 @@ func cacheFileURL(provider string, cacheRoot string) (string, error) {
 	return filepath.Join(root, fmt.Sprintf("%s-v1.json", provider)), nil
 }
 
-// LoadCache loads the usage cache from disk for a given provider.
 func LoadCache(provider string, cacheRoot string) (*Cache, error) {
-	url, err := cacheFileURL(provider, cacheRoot)
+	path, err := cacheFilePath(provider, cacheRoot)
 	if err != nil {
-		return NewCache(), err
+		return nil, err
 	}
 
-	data, err := os.ReadFile(url)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return NewCache(), nil // Return new cache if file doesn't exist
+			return NewCache(), nil
 		}
-		return NewCache(), err
+		return nil, err
 	}
 
 	var cache Cache
 	if err := json.Unmarshal(data, &cache); err != nil {
-		return NewCache(), err
+		return NewCache(), nil
 	}
 
 	if cache.Version != 1 {
@@ -89,14 +90,13 @@ func LoadCache(provider string, cacheRoot string) (*Cache, error) {
 	return &cache, nil
 }
 
-// SaveCache saves the usage cache to disk.
 func SaveCache(provider string, cache *Cache, cacheRoot string) error {
-	url, err := cacheFileURL(provider, cacheRoot)
+	path, err := cacheFilePath(provider, cacheRoot)
 	if err != nil {
 		return err
 	}
 
-	dir := filepath.Dir(url)
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -106,11 +106,14 @@ func SaveCache(provider string, cache *Cache, cacheRoot string) error {
 		return err
 	}
 
-	// Write to temp file then rename, for atomic write.
-	tmpFile := filepath.Join(dir, fmt.Sprintf(".tmp-%s.json", uuid.New().String()))
+	tmpFile := filepath.Join(dir, fmt.Sprintf(".tmp-%s.json", utils.GenerateUUID()))
 	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
 		return err
 	}
 
-	return os.Rename(tmpFile, url)
+	if err := os.Rename(tmpFile, path); err != nil {
+		_ = os.Remove(tmpFile)
+		return err
+	}
+	return nil
 }

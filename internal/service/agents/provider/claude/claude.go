@@ -107,7 +107,7 @@ func (c *ClaudeAgent) Execute(ctx context.Context) error {
 	c.doneCh = make(chan struct{})
 
 	args := c.buildClaudeArgs()
-	c.cmd = exec.CommandContext(taskCtx, "claude", args...)
+	c.cmd = exec.CommandContext(taskCtx, "c", args...)
 	c.cmd.Dir = c.config.WorkDir
 	c.cmd.Env = c.config.Env
 	c.cmd.Stdin = nil
@@ -185,7 +185,6 @@ func (c *ClaudeAgent) Status() agents.Status {
 func (c *ClaudeAgent) buildClaudeArgs() []string {
 	args := []string{
 		"-p", c.config.Prompt,
-		"--dangerously-skip-permissions",
 	}
 	return args
 }

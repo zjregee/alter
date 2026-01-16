@@ -17,6 +17,7 @@ import {
 import { setupViewSwitcher } from './view.js';
 import { setupSettingsNavigation } from './settings.js';
 import { handleSchedulerRunUpdate, setupSchedulerHandlers } from './scheduler.js';
+import { setupUsageHandlers } from './usage.js';
 
 export function initializeApp() {
     setThreadRefresher(() => loadThreads(false));
@@ -31,6 +32,7 @@ export function initializeApp() {
     setupFeedHandlers();
     setupSettingsNavigation();
     setupSchedulerHandlers();
+    setupUsageHandlers();
 
     setupWorkspaceToggle();
     setupModelToggle();

@@ -22,12 +22,15 @@ const (
 )
 
 func (f *Fetcher) LoadTokenSnapshot(provider UsageProvider, now time.Time, forceRefresh bool) (*TokenSnapshot, error) {
+	if now.IsZero() {
+		return nil, fmt.Errorf("now time cannot be zero")
+	}
+
 	if provider != CodexProvider && provider != ClaudeProvider {
 		return nil, fmt.Errorf("cost summary is not supported for %s", provider)
 	}
 
 	until := now
-	// Rolling window: last 30 days (inclusive). Use -29 for inclusive boundaries.
 	since := now.AddDate(0, 0, -29)
 
 	options := ScannerOptions{}
@@ -46,48 +49,45 @@ func (f *Fetcher) LoadTokenSnapshot(provider UsageProvider, now time.Time, force
 }
 
 func tokenSnapshotFromDaily(daily *DailyReport, now time.Time) *TokenSnapshot {
-	var currentDay *DailyReportEntry
+	var todayEntry *DailyReportEntry
+	sortedData := make([]DailyReportEntry, 0)
+
 	if len(daily.Data) > 0 {
-		// Sort by date descending, then cost, then tokens
-		sort.Slice(daily.Data, func(i, j int) bool {
-			if daily.Data[i].Date != daily.Data[j].Date {
-				return daily.Data[i].Date > daily.Data[j].Date
+		sortedData = make([]DailyReportEntry, len(daily.Data))
+		copy(sortedData, daily.Data)
+
+		sort.Slice(sortedData, func(i, j int) bool {
+			if sortedData[i].Date != sortedData[j].Date {
+				return sortedData[i].Date > sortedData[j].Date
 			}
 			costI := 0.0
-			if daily.Data[i].CostUSD != nil {
-				costI = *daily.Data[i].CostUSD
+			if sortedData[i].CostUSD != nil {
+				costI = *sortedData[i].CostUSD
 			}
 			costJ := 0.0
-			if daily.Data[j].CostUSD != nil {
-				costJ = *daily.Data[j].CostUSD
+			if sortedData[j].CostUSD != nil {
+				costJ = *sortedData[j].CostUSD
 			}
 			if costI != costJ {
 				return costI > costJ
 			}
 			tokensI := 0
-			if daily.Data[i].TotalTokens != nil {
-				tokensI = *daily.Data[i].TotalTokens
+			if sortedData[i].TotalTokens != nil {
+				tokensI = *sortedData[i].TotalTokens
 			}
 			tokensJ := 0
-			if daily.Data[j].TotalTokens != nil {
-				tokensJ = *daily.Data[j].TotalTokens
+			if sortedData[j].TotalTokens != nil {
+				tokensJ = *sortedData[j].TotalTokens
 			}
 			return tokensI > tokensJ
 		})
 
-		// Find the entry for today. The swift code seems to just pick the max, which if sorted by date,
-		// would be the latest day. But if there is no data for 'now', it would pick a past day.
-		// Let's find the entry for the current day based on 'now'.
 		todayKey := dayKey(now)
-		for i, entry := range daily.Data {
+		for i, entry := range sortedData {
 			if entry.Date == todayKey {
-				currentDay = &daily.Data[i]
+				todayEntry = &sortedData[i]
 				break
 			}
-		}
-		// If no entry for today, the latest entry is considered the "session"
-		if currentDay == nil {
-			currentDay = &daily.Data[0]
 		}
 	}
 
@@ -109,14 +109,14 @@ func tokenSnapshotFromDaily(daily *DailyReport, now time.Time) *TokenSnapshot {
 	}
 
 	snapshot := &TokenSnapshot{
-		Daily:             daily.Data,
+		Daily:             sortedData,
 		UpdatedAt:         now,
 		Last30DaysCostUSD: last30DaysCostUSD,
 	}
 
-	if currentDay != nil {
-		snapshot.SessionTokens = currentDay.TotalTokens
-		snapshot.SessionCostUSD = currentDay.CostUSD
+	if todayEntry != nil {
+		snapshot.SessionTokens = todayEntry.TotalTokens
+		snapshot.SessionCostUSD = todayEntry.CostUSD
 	}
 
 	return snapshot

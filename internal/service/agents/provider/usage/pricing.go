@@ -163,11 +163,14 @@ func GetCodexCostUSD(model string, inputTokens, cachedInputTokens, outputTokens 
 	if !ok {
 		return nil
 	}
-	cached := min(max(0, cachedInputTokens), max(0, inputTokens))
-	nonCached := max(0, inputTokens-cached)
+	inputTokens = max(0, inputTokens)
+	cachedInputTokens = max(0, min(cachedInputTokens, inputTokens))
+	outputTokens = max(0, outputTokens)
+
+	nonCached := inputTokens - cachedInputTokens
 	cost := float64(nonCached)*pricing.InputCostPerToken +
-		float64(cached)*pricing.CacheReadInputCostPerToken +
-		float64(max(0, outputTokens))*pricing.OutputCostPerToken
+		float64(cachedInputTokens)*pricing.CacheReadInputCostPerToken +
+		float64(outputTokens)*pricing.OutputCostPerToken
 	return &cost
 }
 
@@ -178,6 +181,11 @@ func GetClaudeCostUSD(model string, inputTokens, cacheReadInputTokens, cacheCrea
 		return nil
 	}
 
+	inputTokens = max(0, inputTokens)
+	cacheReadInputTokens = max(0, cacheReadInputTokens)
+	cacheCreationInputTokens = max(0, cacheCreationInputTokens)
+	outputTokens = max(0, outputTokens)
+
 	tiered := func(tokens int, base float64, above *float64, threshold *int) float64 {
 		if threshold == nil || above == nil {
 			return float64(tokens) * base
@@ -187,10 +195,10 @@ func GetClaudeCostUSD(model string, inputTokens, cacheReadInputTokens, cacheCrea
 		return float64(below)*base + float64(over)**above
 	}
 
-	cost := tiered(max(0, inputTokens), pricing.InputCostPerToken, pricing.InputCostPerTokenAboveThreshold, pricing.ThresholdTokens) +
-		tiered(max(0, cacheReadInputTokens), pricing.CacheReadInputCostPerToken, pricing.CacheReadInputCostPerTokenAboveThreshold, pricing.ThresholdTokens) +
-		tiered(max(0, cacheCreationInputTokens), pricing.CacheCreationInputCostPerToken, pricing.CacheCreationInputCostPerTokenAboveThreshold, pricing.ThresholdTokens) +
-		tiered(max(0, outputTokens), pricing.OutputCostPerToken, pricing.OutputCostPerTokenAboveThreshold, pricing.ThresholdTokens)
+	cost := tiered(inputTokens, pricing.InputCostPerToken, pricing.InputCostPerTokenAboveThreshold, pricing.ThresholdTokens) +
+		tiered(cacheReadInputTokens, pricing.CacheReadInputCostPerToken, pricing.CacheReadInputCostPerTokenAboveThreshold, pricing.ThresholdTokens) +
+		tiered(cacheCreationInputTokens, pricing.CacheCreationInputCostPerToken, pricing.CacheCreationInputCostPerTokenAboveThreshold, pricing.ThresholdTokens) +
+		tiered(outputTokens, pricing.OutputCostPerToken, pricing.OutputCostPerTokenAboveThreshold, pricing.ThresholdTokens)
 
 	return &cost
 }

@@ -85,9 +85,10 @@ select {
 
 .feed-topic-item .dot {
     position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 8px;
+    right: 8px;
+    width: 6px;
+    height: 6px;
     display: none;
 }
 

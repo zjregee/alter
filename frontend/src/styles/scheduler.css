@@ -113,13 +113,7 @@
     background-color: transparent;
     display: flex;
     flex-direction: column;
-}
-
-.scheduler-header-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
+    gap: 8px;
 }
 
 .scheduler-detail-name {
@@ -127,10 +121,14 @@
     font-weight: 600;
     color: var(--text-primary);
     margin-bottom: 0;
+    line-height: 1.4;
+}
+
+.scheduler-header-controls {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 8px;
-    line-height: 24px; /* Match button height for better alignment */
+    width: 100%;
 }
 
 .scheduler-detail-status {
@@ -176,7 +174,6 @@
     gap: 10px;
     padding-top: 0;
     flex-shrink: 0;
-    margin-left: 16px;
 }
 
 .scheduler-action-btn {
@@ -292,6 +289,47 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
     color: var(--text-secondary);
+}
+
+/* Hook Block */
+.scheduler-hook-block {
+    padding: 6px 0 6px 0;
+}
+
+.scheduler-hook-block .config-label {
+    margin-bottom: 12px;
+    display: block;
+}
+
+.scheduler-hook-list {
+    background-color: var(--input-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.scheduler-hook-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.scheduler-hook-item .hook-index {
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+    min-width: 20px;
+}
+
+.scheduler-hook-item .hook-command {
+    flex: 1;
+    word-break: break-all;
 }
 
 /* Prompt Block */

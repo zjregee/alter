@@ -26,6 +26,7 @@ type workflowYAML struct {
 	RequestInterval time.Duration `yaml:"request_interval"`
 	WorkDir         string        `yaml:"work_dir"`
 	Schedule        *scheduleYAML `yaml:"schedule"`
+	PreHook         []string      `yaml:"pre_hook,omitempty"`
 }
 
 type scheduleYAML struct {
@@ -119,6 +120,7 @@ func parseWorkflowFile(path string) (*models.Schedule, error) {
 			MaxIterations:   wf.MaxIterations,
 			RequestInterval: wf.RequestInterval,
 			WorkDir:         wf.WorkDir,
+			PreHook:         wf.PreHook,
 		},
 		Enabled:        false,
 		CronExpr:       wf.Schedule.CronExpr,

@@ -88,6 +88,12 @@
 }
 
 .thinking-dots .dot {
+    /* Reset notification dot styles */
+    background: none;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    /* Animation for thinking */
     animation: dot-opacity 1.4s infinite;
 }
 

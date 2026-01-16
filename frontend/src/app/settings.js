@@ -1,5 +1,6 @@
 import { dom } from './dom.js';
 import { loadSchedules } from './scheduler.js';
+import { loadUsageData } from './usage.js';
 
 export function setupSettingsNavigation() {
     if (!dom.settingsSidebar) return;
@@ -26,13 +27,19 @@ export function setupSettingsNavigation() {
         // Load specific section data
         if (section === 'scheduler') {
             loadSchedules();
+        } else if (section === 'usage') {
+            loadUsageData();
         }
     });
 }
 
 export function onSettingsViewActivated() {
     const activeItem = dom.settingsSidebar?.querySelector('.settings-item.active');
-    if (activeItem && activeItem.dataset.section === 'scheduler') {
-        loadSchedules();
+    if (activeItem) {
+        if (activeItem.dataset.section === 'scheduler') {
+            loadSchedules();
+        } else if (activeItem.dataset.section === 'usage') {
+            loadUsageData();
+        }
     }
 }

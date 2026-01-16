@@ -1,10 +1,12 @@
 package scheduler
 
 import (
+	"bytes"
 	"container/heap"
 	"context"
 	"fmt"
 	"math"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -158,6 +160,10 @@ func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *mod
 
 	var lastErr error
 
+	if err := s.executePreHook(s.ctx, schedule); err != nil {
+		return fmt.Errorf("failed to execute pre-hook: %w", err)
+	}
+
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			waitDuration := time.Duration(float64(retryInterval) * math.Pow(backoff, float64(attempt-1)))
@@ -211,6 +217,32 @@ func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *mod
 	}
 
 	return fmt.Errorf("failed after %d attempts: %w", maxRetries+1, lastErr)
+}
+
+func (s *Scheduler) executePreHook(ctx context.Context, schedule *models.Schedule) error {
+	if len(schedule.WorkflowConfig.PreHook) == 0 || schedule.WorkflowConfig.WorkDir == "" {
+		return nil
+	}
+
+	for _, command := range schedule.WorkflowConfig.PreHook {
+		cmdCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+		cmd := exec.CommandContext(cmdCtx, "bash", "-c", command)
+		cmd.Dir = schedule.WorkflowConfig.WorkDir
+
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err != nil {
+			cancel()
+			return fmt.Errorf("pre-hook command '%s' failed: %w. Stderr: %s", command, err, stderr.String())
+		}
+
+		cancel()
+		utils.GetLogger().Printf("pre-hook command '%s' finished successfully. Stdout: %s", command, stdout.String())
+	}
+
+	return nil
 }
 
 func (s *Scheduler) generateSummary(ctx context.Context, schedule *models.Schedule, result *workflow.ExecutionResult) (string, error) {

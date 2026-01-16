@@ -21,4 +21,5 @@ type WorkflowConfig struct {
 	MaxIterations   int           `json:"max_iterations"`
 	RequestInterval time.Duration `json:"request_interval"`
 	WorkDir         string        `json:"work_dir"`
+	PreHook         []string      `json:"pre_hook,omitempty"`
 }

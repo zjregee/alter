@@ -203,35 +203,6 @@
     margin-bottom: 0;
 }
 
-.thinking-dots {
-    display: inline-flex;
-}
-
-.thinking-dots .dot {
-    animation: dot-opacity 1.4s infinite;
-}
-
-.thinking-dots .dot:nth-child(1) {
-    animation-delay: 0s;
-}
-.thinking-dots .dot:nth-child(2) {
-    animation-delay: 0.2s;
-}
-.thinking-dots .dot:nth-child(3) {
-    animation-delay: 0.4s;
-}
-
-@keyframes dot-opacity {
-    0%,
-    60%,
-    100% {
-        opacity: 0;
-    }
-    30% {
-        opacity: 1;
-    }
-}
-
 /* Tool Calls */
 .tool-calls {
     margin-top: 12px;

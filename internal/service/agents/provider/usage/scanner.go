@@ -1,20 +1,28 @@
 package usage
 
 import (
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tidwall/gjson"
+
+	"github.com/zjregee/alter/internal/utils"
 )
+
+var logger = utils.GetLogger()
 
 const (
 	ProviderCodex  = "codex"
 	ProviderClaude = "claude"
+
+	MaxCodexLineBytes  = 32 * 1024
+	MaxClaudeLineBytes = 64 * 1024
 )
 
 type ScannerOptions struct {
@@ -64,27 +72,226 @@ func LoadDailyReport(provider string, since, until, now time.Time, options Scann
 	}
 }
 
-func defaultCodexSessionsRoot(options ScannerOptions) (string, error) {
-	if options.CodexSessionsRoot != "" {
-		return options.CodexSessionsRoot, nil
-	}
-	if codexHome := os.Getenv("CODEX_HOME"); codexHome != "" {
-		return filepath.Join(codexHome, "sessions"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".codex", "sessions"), nil
+type providerHooks struct {
+	name        string
+	listFunc    func(rng DayRange, options ScannerOptions) ([]string, error)
+	parseFunc   func(filePath string, rng DayRange) (*FileUsage, error)
+	buildReport func(cache *Cache, rng DayRange) *DailyReport
 }
 
-func listCodexSessionFiles(root, scanSinceKey, scanUntilKey string) ([]string, error) {
-	var files []string
-	since, err := parseDayKey(scanSinceKey)
+func loadDailyForProvider(hooks providerHooks, rng DayRange, now time.Time, options ScannerOptions) (*DailyReport, error) {
+	cache, err := LoadCache(hooks.name, options.CacheRoot)
+	if err != nil {
+		logger.Printf("[WARN] failed to load %s cache: %v", hooks.name, err)
+		cache = NewCache()
+	}
+
+	nowMs := now.UnixMilli()
+	shouldRefresh := options.RefreshMinInterval == 0 || cache.LastScanUnixMs == 0 || now.Sub(time.UnixMilli(cache.LastScanUnixMs)) > options.RefreshMinInterval
+
+	if shouldRefresh {
+		allFiles, err := hooks.listFunc(rng, options)
+		if err != nil {
+			return nil, err
+		}
+		filesInScan := make(map[string]struct{})
+		for _, f := range allFiles {
+			filesInScan[f] = struct{}{}
+		}
+
+		type parseResult struct {
+			filePath string
+			usage    *FileUsage
+			err      error
+		}
+
+		var filesToParse []string
+		for _, filePath := range allFiles {
+			info, err := os.Stat(filePath)
+			if err != nil {
+				continue
+			}
+			mtimeMs := info.ModTime().UnixMilli()
+			size := info.Size()
+
+			if cached, ok := cache.Files[filePath]; ok && cached.MtimeUnixMs == mtimeMs && cached.Size == size {
+				continue
+			}
+			filesToParse = append(filesToParse, filePath)
+		}
+
+		if len(filesToParse) > 0 {
+			numWorkers := runtime.NumCPU()
+			jobs := make(chan string, len(filesToParse))
+			results := make(chan parseResult, len(filesToParse))
+			var wg sync.WaitGroup
+
+			for w := 0; w < numWorkers; w++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					for filePath := range jobs {
+						parsed, err := hooks.parseFunc(filePath, rng)
+						results <- parseResult{filePath: filePath, usage: parsed, err: err}
+					}
+				}()
+			}
+
+			for _, filePath := range filesToParse {
+				jobs <- filePath
+			}
+			close(jobs)
+
+			wg.Wait()
+			close(results)
+
+			for result := range results {
+				if result.err != nil {
+					logger.Printf("[ERROR] error parsing %s file %s: %v", hooks.name, result.filePath, result.err)
+					continue
+				}
+
+				if cached, ok := cache.Files[result.filePath]; ok {
+					applyFileDays(cache, cached.Days, -1)
+				}
+				cache.Files[result.filePath] = *result.usage
+				applyFileDays(cache, result.usage.Days, 1)
+			}
+		}
+
+		for path := range cache.Files {
+			if _, ok := filesInScan[path]; !ok {
+				if old, ok := cache.Files[path]; ok {
+					applyFileDays(cache, old.Days, -1)
+				}
+				delete(cache.Files, path)
+			}
+		}
+
+		pruneDays(cache, rng.ScanSinceKey, rng.ScanUntilKey)
+		cache.LastScanUnixMs = nowMs
+		if err := SaveCache(hooks.name, cache, options.CacheRoot); err != nil {
+			logger.Printf("[ERROR] failed to save %s cache: %v", hooks.name, err)
+		}
+	}
+
+	return hooks.buildReport(cache, rng), nil
+}
+
+type costExtractor func(model string, packed []int) (inputTokens int, outputTokens int, cost *float64)
+
+func buildReportFromCache(cache *Cache, rng DayRange, extractor costExtractor) *DailyReport {
+	dayKeys := make([]string, 0, len(cache.Days))
+	for k := range cache.Days {
+		dayKeys = append(dayKeys, k)
+	}
+	sort.Strings(dayKeys)
+
+	entries := make([]DailyReportEntry, 0, len(dayKeys))
+	var totalInput, totalOutput, totalTokens int
+	var totalCost float64
+	var costSeen bool
+
+	for _, day := range dayKeys {
+		if !isInRange(day, rng.SinceKey, rng.UntilKey) {
+			continue
+		}
+		models := cache.Days[day]
+		modelNames := make([]string, 0, len(models))
+		for k := range models {
+			modelNames = append(modelNames, k)
+		}
+		sort.Strings(modelNames)
+
+		var dayInput, dayOutput int
+		breakdowns := make([]ModelBreakdown, 0, len(modelNames))
+		var dayCost float64
+		var dayCostSeen bool
+
+		for _, model := range modelNames {
+			packed := models[model]
+			input, output, cost := extractor(model, packed)
+
+			dayInput += input
+			dayOutput += output
+
+			breakdowns = append(breakdowns, ModelBreakdown{ModelName: model, CostUSD: cost})
+			if cost != nil {
+				dayCost += *cost
+				dayCostSeen = true
+			}
+		}
+		sort.Slice(breakdowns, func(i, j int) bool {
+			if breakdowns[i].CostUSD == nil {
+				return false
+			}
+			if breakdowns[j].CostUSD == nil {
+				return true
+			}
+			return *breakdowns[i].CostUSD > *breakdowns[j].CostUSD
+		})
+
+		dayTotal := dayInput + dayOutput
+		var entryCost *float64
+		if dayCostSeen {
+			entryCost = &dayCost
+		}
+
+		entries = append(entries, DailyReportEntry{
+			Date:            day,
+			InputTokens:     &dayInput,
+			OutputTokens:    &dayOutput,
+			TotalTokens:     &dayTotal,
+			CostUSD:         entryCost,
+			ModelsUsed:      modelNames,
+			ModelBreakdowns: breakdowns,
+		})
+
+		totalInput += dayInput
+		totalOutput += dayOutput
+		totalTokens += dayTotal
+		if entryCost != nil {
+			totalCost += *entryCost
+			costSeen = true
+		}
+	}
+
+	var summary *DailyReportSummary
+	if len(entries) > 0 {
+		summary = &DailyReportSummary{
+			TotalInputTokens:  &totalInput,
+			TotalOutputTokens: &totalOutput,
+			TotalTokens:       &totalTokens,
+		}
+		if costSeen {
+			summary.TotalCostUSD = &totalCost
+		}
+	}
+
+	return &DailyReport{Data: entries, Summary: summary}
+}
+
+func codexCostExtractor(model string, packed []int) (int, int, *float64) {
+	if len(packed) < 3 {
+		return 0, 0, nil
+	}
+	input, cached, output := packed[0], packed[1], packed[2]
+	cost := GetCodexCostUSD(model, input, cached, output)
+	return input, output, cost
+}
+
+func listCodexLogs(rng DayRange, options ScannerOptions) ([]string, error) {
+	root, err := defaultCodexSessionsRoot(options)
 	if err != nil {
 		return nil, err
 	}
-	until, err := parseDayKey(scanUntilKey)
+
+	var files []string
+	since, err := parseDayKey(rng.ScanSinceKey)
+	if err != nil {
+		return nil, err
+	}
+	until, err := parseDayKey(rng.ScanUntilKey)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +314,21 @@ func listCodexSessionFiles(root, scanSinceKey, scanUntilKey string) ([]string, e
 	return files, nil
 }
 
-func parseCodexFile(fileURL string, rng DayRange) (*FileUsage, error) {
+func defaultCodexSessionsRoot(options ScannerOptions) (string, error) {
+	if options.CodexSessionsRoot != "" {
+		return options.CodexSessionsRoot, nil
+	}
+	if codexHome := os.Getenv("CODEX_HOME"); codexHome != "" {
+		return filepath.Join(codexHome, "sessions"), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".codex", "sessions"), nil
+}
+
+func parseCodexFile(filePath string, rng DayRange) (*FileUsage, error) {
 	fileUsage := &FileUsage{Days: make(map[string]map[string][]int)}
 	var currentModel string
 	var previousTotals struct {
@@ -135,8 +356,8 @@ func parseCodexFile(fileURL string, rng DayRange) (*FileUsage, error) {
 		dayModels[normModel] = packed
 	}
 
-	err := ScanJSONL(fileURL, 256*1024, 32*1024, func(line Line) {
-		if line.WasTruncated || len(line.Bytes) == 0 {
+	err := ScanJSONL(filePath, MaxCodexLineBytes, func(line Line) {
+		if line.WasDiscarded || len(line.Bytes) == 0 {
 			return
 		}
 
@@ -172,7 +393,6 @@ func parseCodexFile(fileURL string, rng DayRange) (*FileUsage, error) {
 			return
 		}
 
-		// event_msg with token_count
 		payload := res.Get("payload")
 		model := payload.Get("info.model").String()
 		if model == "" {
@@ -188,7 +408,7 @@ func parseCodexFile(fileURL string, rng DayRange) (*FileUsage, error) {
 			model = currentModel
 		}
 		if model == "" {
-			model = "gpt-5" // fallback
+			model = "unknown_codex_model"
 		}
 
 		toInt := func(r gjson.Result) int {
@@ -220,6 +440,9 @@ func parseCodexFile(fileURL string, rng DayRange) (*FileUsage, error) {
 				deltaCached = toInt(last.Get("cache_read_input_tokens"))
 			}
 			deltaOutput = max(0, toInt(last.Get("output_tokens")))
+			previousTotals.input += deltaInput
+			previousTotals.cached += deltaCached
+			previousTotals.output += deltaOutput
 		} else {
 			return
 		}
@@ -232,11 +455,10 @@ func parseCodexFile(fileURL string, rng DayRange) (*FileUsage, error) {
 	})
 
 	if err != nil {
-		// Log error but don't fail the whole scan
-		fmt.Fprintf(os.Stderr, "error scanning %s: %v\n", fileURL, err)
+		logger.Printf("[ERROR] error scanning %s: %v", filePath, err)
 	}
 
-	info, err := os.Stat(fileURL)
+	info, err := os.Stat(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -247,167 +469,52 @@ func parseCodexFile(fileURL string, rng DayRange) (*FileUsage, error) {
 }
 
 func loadCodexDaily(rng DayRange, now time.Time, options ScannerOptions) (*DailyReport, error) {
-	cache, err := LoadCache(ProviderCodex, options.CacheRoot)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to load codex cache: %v", err)
-		cache = NewCache()
+	hooks := providerHooks{
+		name:      ProviderCodex,
+		listFunc:  listCodexLogs,
+		parseFunc: parseCodexFile,
+		buildReport: func(cache *Cache, rng DayRange) *DailyReport {
+			return buildReportFromCache(cache, rng, codexCostExtractor)
+		},
 	}
-
-	nowMs := now.UnixMilli()
-	shouldRefresh := options.RefreshMinInterval == 0 || cache.LastScanUnixMs == 0 || now.Sub(time.UnixMilli(cache.LastScanUnixMs)) > options.RefreshMinInterval
-
-	root, err := defaultCodexSessionsRoot(options)
-	if err != nil {
-		return nil, err
-	}
-
-	files, err := listCodexSessionFiles(root, rng.ScanSinceKey, rng.ScanUntilKey)
-	if err != nil {
-		return nil, err
-	}
-	filePathsInScan := make(map[string]struct{})
-	for _, f := range files {
-		filePathsInScan[f] = struct{}{}
-	}
-
-	if shouldRefresh {
-		for _, fileURL := range files {
-			info, err := os.Stat(fileURL)
-			if err != nil {
-				continue
-			}
-			mtimeMs := info.ModTime().UnixMilli()
-			size := info.Size()
-
-			if cached, ok := cache.Files[fileURL]; ok && cached.MtimeUnixMs == mtimeMs && cached.Size == size {
-				continue
-			}
-
-			if cached, ok := cache.Files[fileURL]; ok {
-				applyFileDays(cache, cached.Days, -1)
-			}
-
-			parsed, err := parseCodexFile(fileURL, rng)
-			if err != nil {
-				// log and continue
-				fmt.Fprintf(os.Stderr, "error parsing codex file %s: %v\n", fileURL, err)
-				continue
-			}
-			cache.Files[fileURL] = *parsed
-			applyFileDays(cache, parsed.Days, 1)
-		}
-
-		for path := range cache.Files {
-			if _, ok := filePathsInScan[path]; !ok {
-				if old, ok := cache.Files[path]; ok {
-					applyFileDays(cache, old.Days, -1)
-				}
-				delete(cache.Files, path)
-			}
-		}
-
-		pruneDays(cache, rng.ScanSinceKey, rng.ScanUntilKey)
-		cache.LastScanUnixMs = nowMs
-		if err := SaveCache(ProviderCodex, cache, options.CacheRoot); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to save codex cache: %v\n", err)
-		}
-	}
-
-	return buildCodexReportFromCache(cache, rng), nil
+	return loadDailyForProvider(hooks, rng, now, options)
 }
 
-func buildCodexReportFromCache(cache *Cache, rng DayRange) *DailyReport {
-	var entries []DailyReportEntry
-	var totalInput, totalOutput, totalTokens int
-	var totalCost float64
-	var costSeen bool
-
-	var dayKeys []string
-	for k := range cache.Days {
-		dayKeys = append(dayKeys, k)
+func claudeCostExtractor(model string, packed []int) (int, int, *float64) {
+	if len(packed) < 4 {
+		return 0, 0, nil
 	}
-	sort.Strings(dayKeys)
+	input, cacheRead, cacheCreate, output := packed[0], packed[1], packed[2], packed[3]
+	inputTotal := input + cacheRead + cacheCreate
 
-	for _, day := range dayKeys {
-		if !isInRange(day, rng.SinceKey, rng.UntilKey) {
-			continue
-		}
-		models := cache.Days[day]
-		var modelNames []string
-		for k := range models {
-			modelNames = append(modelNames, k)
-		}
-		sort.Strings(modelNames)
-
-		var dayInput, dayOutput int
-		var breakdowns []ModelBreakdown
-		var dayCost float64
-		var dayCostSeen bool
-
-		for _, model := range modelNames {
-			packed := models[model]
-			input, cached, output := packed[0], packed[1], packed[2]
-			dayInput += input
-			dayOutput += output
-
-			cost := GetCodexCostUSD(model, input, cached, output)
-			breakdowns = append(breakdowns, ModelBreakdown{ModelName: model, CostUSD: cost})
-			if cost != nil {
-				dayCost += *cost
-				dayCostSeen = true
-			}
-		}
-		sort.Slice(breakdowns, func(i, j int) bool {
-			if breakdowns[i].CostUSD == nil {
-				return false
-			}
-			if breakdowns[j].CostUSD == nil {
-				return true
-			}
-			return *breakdowns[i].CostUSD > *breakdowns[j].CostUSD
-		})
-
-		dayTotal := dayInput + dayOutput
-		var entryCost *float64
-		if dayCostSeen {
-			entryCost = &dayCost
-		}
-
-		entries = append(entries, DailyReportEntry{
-			Date:            day,
-			InputTokens:     &dayInput,
-			OutputTokens:    &dayOutput,
-			TotalTokens:     &dayTotal,
-			CostUSD:         entryCost,
-			ModelsUsed:      modelNames,
-			ModelBreakdowns: breakdowns,
-		})
-
-		totalInput += dayInput
-		totalOutput += dayOutput
-		totalTokens += dayTotal
-		if entryCost != nil {
-			totalCost += *entryCost
-			costSeen = true
-		}
-	}
-
-	var summary *DailyReportSummary
-	if len(entries) > 0 {
-		summary = &DailyReportSummary{
-			TotalInputTokens:  &totalInput,
-			TotalOutputTokens: &totalOutput,
-			TotalTokens:       &totalTokens,
-		}
-		if costSeen {
-			summary.TotalCostUSD = &totalCost
-		}
-	}
-
-	return &DailyReport{Data: entries, Summary: summary}
+	cost := GetClaudeCostUSD(model, input, cacheRead, cacheCreate, output)
+	return inputTotal, output, cost
 }
 
-// --- Claude ---
+func listClaudeLogs(rng DayRange, options ScannerOptions) ([]string, error) {
+	roots := defaultClaudeProjectsRoots(options)
+	var files []string
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(strings.ToLower(d.Name()), ".jsonl") {
+				return nil
+			}
+			info, err := d.Info()
+			if err != nil {
+				return nil
+			}
+			if info.Size() <= 0 {
+				return nil
+			}
+			files = append(files, path)
+			return nil
+		})
+		if err != nil {
+			logger.Printf("[ERROR] error walking claude project root %s: %v", root, err)
+		}
+	}
+	return files, nil
+}
 
 func defaultClaudeProjectsRoots(options ScannerOptions) []string {
 	if len(options.ClaudeProjectsRoots) > 0 {
@@ -437,7 +544,7 @@ func defaultClaudeProjectsRoots(options ScannerOptions) []string {
 	return roots
 }
 
-func parseClaudeFile(fileURL string, rng DayRange) (*FileUsage, error) {
+func parseClaudeFile(filePath string, rng DayRange) (*FileUsage, error) {
 	fileUsage := &FileUsage{Days: make(map[string]map[string][]int)}
 
 	add := func(dayKey, model string, tokens map[string]int) {
@@ -451,17 +558,18 @@ func parseClaudeFile(fileURL string, rng DayRange) (*FileUsage, error) {
 		dayModels := fileUsage.Days[dayKey]
 		packed := dayModels[normModel]
 		if packed == nil {
-			packed = []int{0, 0, 0, 0}
+			packed = make([]int, 4)
 		}
 		packed[0] += tokens["input"]
 		packed[1] += tokens["cacheRead"]
 		packed[2] += tokens["cacheCreate"]
 		packed[3] += tokens["output"]
+
 		dayModels[normModel] = packed
 	}
 
-	err := ScanJSONL(fileURL, 256*1024, 64*1024, func(line Line) {
-		if line.WasTruncated || len(line.Bytes) == 0 {
+	err := ScanJSONL(filePath, MaxClaudeLineBytes, func(line Line) {
+		if line.WasDiscarded || len(line.Bytes) == 0 {
 			return
 		}
 		if !gjson.ValidBytes(line.Bytes) {
@@ -494,14 +602,15 @@ func parseClaudeFile(fileURL string, rng DayRange) (*FileUsage, error) {
 		if tokens["input"] == 0 && tokens["cacheCreate"] == 0 && tokens["cacheRead"] == 0 && tokens["output"] == 0 {
 			return
 		}
+
 		add(dayKey, model, tokens)
 	})
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error scanning %s: %v\n", fileURL, err)
+		logger.Printf("[ERROR] error scanning %s: %v", filePath, err)
 	}
 
-	info, err := os.Stat(fileURL)
+	info, err := os.Stat(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -512,169 +621,16 @@ func parseClaudeFile(fileURL string, rng DayRange) (*FileUsage, error) {
 }
 
 func loadClaudeDaily(rng DayRange, now time.Time, options ScannerOptions) (*DailyReport, error) {
-	cache, err := LoadCache(ProviderClaude, options.CacheRoot)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to load claude cache: %v\n", err)
-		cache = NewCache()
+	hooks := providerHooks{
+		name:      ProviderClaude,
+		listFunc:  listClaudeLogs,
+		parseFunc: parseClaudeFile,
+		buildReport: func(cache *Cache, rng DayRange) *DailyReport {
+			return buildReportFromCache(cache, rng, claudeCostExtractor)
+		},
 	}
-
-	nowMs := now.UnixMilli()
-	shouldRefresh := options.RefreshMinInterval == 0 || cache.LastScanUnixMs == 0 || now.Sub(time.UnixMilli(cache.LastScanUnixMs)) > options.RefreshMinInterval
-
-	roots := defaultClaudeProjectsRoots(options)
-	touched := make(map[string]struct{})
-
-	if shouldRefresh {
-		for _, root := range roots {
-			_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-				if err != nil || d.IsDir() || !strings.HasSuffix(strings.ToLower(d.Name()), ".jsonl") {
-					return nil
-				}
-
-				info, err := d.Info()
-				if err != nil {
-					return nil
-				}
-				if info.Size() <= 0 {
-					return nil
-				}
-
-				touched[path] = struct{}{}
-				mtimeMs := info.ModTime().UnixMilli()
-
-				if cached, ok := cache.Files[path]; ok && cached.MtimeUnixMs == mtimeMs && cached.Size == info.Size() {
-					return nil
-				}
-
-				if cached, ok := cache.Files[path]; ok {
-					applyFileDays(cache, cached.Days, -1)
-				}
-
-				parsed, err := parseClaudeFile(path, rng)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "error parsing claude file %s: %v\n", path, err)
-					return nil
-				}
-				cache.Files[path] = *parsed
-				applyFileDays(cache, parsed.Days, 1)
-
-				return nil
-			})
-		}
-
-		for path := range cache.Files {
-			if _, ok := touched[path]; !ok {
-				if old, ok := cache.Files[path]; ok {
-					applyFileDays(cache, old.Days, -1)
-				}
-				delete(cache.Files, path)
-			}
-		}
-
-		pruneDays(cache, rng.ScanSinceKey, rng.ScanUntilKey)
-		cache.LastScanUnixMs = nowMs
-		if err := SaveCache(ProviderClaude, cache, options.CacheRoot); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to save claude cache: %v\n", err)
-		}
-	}
-
-	return buildClaudeReportFromCache(cache, rng), nil
+	return loadDailyForProvider(hooks, rng, now, options)
 }
-
-func buildClaudeReportFromCache(cache *Cache, rng DayRange) *DailyReport {
-	var entries []DailyReportEntry
-	var totalInput, totalOutput, totalTokens int
-	var totalCost float64
-	var costSeen bool
-
-	var dayKeys []string
-	for k := range cache.Days {
-		dayKeys = append(dayKeys, k)
-	}
-	sort.Strings(dayKeys)
-
-	for _, day := range dayKeys {
-		if !isInRange(day, rng.SinceKey, rng.UntilKey) {
-			continue
-		}
-		models := cache.Days[day]
-		var modelNames []string
-		for k := range models {
-			modelNames = append(modelNames, k)
-		}
-		sort.Strings(modelNames)
-
-		var dayInput, dayOutput int
-		var breakdowns []ModelBreakdown
-		var dayCost float64
-		var dayCostSeen bool
-
-		for _, model := range modelNames {
-			packed := models[model]
-			input, cacheRead, cacheCreate, output := packed[0], packed[1], packed[2], packed[3]
-
-			inputTotal := input + cacheRead + cacheCreate
-			dayInput += inputTotal
-			dayOutput += output
-
-			cost := GetClaudeCostUSD(model, input, cacheRead, cacheCreate, output)
-			breakdowns = append(breakdowns, ModelBreakdown{ModelName: model, CostUSD: cost})
-			if cost != nil {
-				dayCost += *cost
-				dayCostSeen = true
-			}
-		}
-		sort.Slice(breakdowns, func(i, j int) bool {
-			if breakdowns[i].CostUSD == nil {
-				return false
-			}
-			if breakdowns[j].CostUSD == nil {
-				return true
-			}
-			return *breakdowns[i].CostUSD > *breakdowns[j].CostUSD
-		})
-
-		dayTotal := dayInput + dayOutput
-		var entryCost *float64
-		if dayCostSeen {
-			entryCost = &dayCost
-		}
-
-		entries = append(entries, DailyReportEntry{
-			Date:            day,
-			InputTokens:     &dayInput,
-			OutputTokens:    &dayOutput,
-			TotalTokens:     &dayTotal,
-			CostUSD:         entryCost,
-			ModelsUsed:      modelNames,
-			ModelBreakdowns: breakdowns,
-		})
-
-		totalInput += dayInput
-		totalOutput += dayOutput
-		totalTokens += dayTotal
-		if entryCost != nil {
-			totalCost += *entryCost
-			costSeen = true
-		}
-	}
-
-	var summary *DailyReportSummary
-	if len(entries) > 0 {
-		summary = &DailyReportSummary{
-			TotalInputTokens:  &totalInput,
-			TotalOutputTokens: &totalOutput,
-			TotalTokens:       &totalTokens,
-		}
-		if costSeen {
-			summary.TotalCostUSD = &totalCost
-		}
-	}
-
-	return &DailyReport{Data: entries, Summary: summary}
-}
-
-// --- Shared cache mutations ---
 
 func applyFileDays(cache *Cache, fileDays map[string]map[string][]int, sign int) {
 	for day, models := range fileDays {
@@ -716,6 +672,7 @@ func addPacked(a, b []int, sign int) []int {
 	lenA, lenB := len(a), len(b)
 	maxLen := max(lenA, lenB)
 	out := make([]int, maxLen)
+
 	for i := 0; i < maxLen; i += 1 {
 		valA := 0
 		if i < lenA {
@@ -725,21 +682,7 @@ func addPacked(a, b []int, sign int) []int {
 		if i < lenB {
 			valB = b[i]
 		}
-		out[i] = max(0, valA+sign*valB)
+		out[i] = valA + sign*valB
 	}
 	return out
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

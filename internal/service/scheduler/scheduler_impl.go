@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"container/heap"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os/exec"
@@ -178,7 +179,12 @@ func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *mod
 
 		s.activeMu.Lock()
 		run.RetryCount = attempt
+		run.ToolTrace = nil
 		s.activeMu.Unlock()
+		if err := storage.SaveScheduleRun(run); err != nil {
+			return err
+		}
+		notify.EmitSchedulerRunUpdated(s.ctx, run)
 
 		wf := workflow.NewWorkflow(schedule.WorkflowConfig)
 
@@ -190,11 +196,21 @@ func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *mod
 
 		execResult := &workflow.ExecutionResult{}
 		executeCtx = workflow.WithExecutionResult(executeCtx, execResult)
+		executeCtx = workflow.WithToolTraceHandler(executeCtx, func(msg models.AgentMessage) {
+			s.appendToolTraceEvent(run, msg)
+		})
 
 		err := s.executor.Execute(executeCtx, wf)
 		if cancel != nil {
 			cancel()
 		}
+
+		s.captureToolTrace(run, execResult)
+		if err := storage.SaveScheduleRun(run); err != nil {
+			return err
+		}
+		notify.EmitSchedulerRunUpdated(s.ctx, run)
+
 		if err == nil {
 			summaryCtx, summaryCancel := context.WithTimeout(s.ctx, 30*time.Second)
 			defer summaryCancel()
@@ -210,13 +226,84 @@ func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *mod
 			return nil
 		}
 		lastErr = err
-
-		if err := storage.SaveScheduleRun(run); err != nil {
-			return err
-		}
 	}
 
 	return fmt.Errorf("failed after %d attempts: %w", maxRetries+1, lastErr)
+}
+
+func (s *Scheduler) captureToolTrace(run *models.ScheduleRun, execResult *workflow.ExecutionResult) {
+	if run == nil {
+		return
+	}
+
+	trace := buildToolTrace(execResult)
+
+	s.activeMu.Lock()
+	run.ToolTrace = trace
+	s.activeMu.Unlock()
+}
+
+func buildToolTrace(execResult *workflow.ExecutionResult) []*models.MarshaledThreadMessage {
+	if execResult == nil || len(execResult.Record) == 0 {
+		return nil
+	}
+
+	trace := make([]*models.MarshaledThreadMessage, 0, len(execResult.Record))
+	for _, msg := range execResult.Record {
+		if msg == nil {
+			continue
+		}
+
+		msgType := msg.GetType()
+		if msgType != models.AgentMessageTypeExecutingToolStart && msgType != models.AgentMessageTypeExecutingToolFinish {
+			continue
+		}
+
+		content, err := json.Marshal(msg)
+		if err != nil {
+			continue
+		}
+
+		trace = append(trace, &models.MarshaledThreadMessage{
+			Type:    msgType,
+			Content: content,
+		})
+	}
+
+	if len(trace) == 0 {
+		return nil
+	}
+	return trace
+}
+
+func (s *Scheduler) appendToolTraceEvent(run *models.ScheduleRun, msg models.AgentMessage) {
+	if run == nil || msg == nil {
+		return
+	}
+
+	msgType := msg.GetType()
+	if msgType != models.AgentMessageTypeExecutingToolStart && msgType != models.AgentMessageTypeExecutingToolFinish {
+		return
+	}
+
+	content, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+
+	event := &models.MarshaledThreadMessage{
+		Type:    msgType,
+		Content: content,
+	}
+
+	s.activeMu.Lock()
+	if run.ToolTrace == nil {
+		run.ToolTrace = make([]*models.MarshaledThreadMessage, 0, 8)
+	}
+	run.ToolTrace = append(run.ToolTrace, event)
+	s.activeMu.Unlock()
+
+	notify.EmitSchedulerRunUpdated(s.ctx, run)
 }
 
 func (s *Scheduler) executePreHook(ctx context.Context, schedule *models.Schedule) error {

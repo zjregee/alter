@@ -21,6 +21,9 @@ type ExecutionResult struct {
 }
 
 type executionResultKey struct{}
+type toolTraceHandlerKey struct{}
+
+type ToolTraceHandler func(models.AgentMessage)
 
 func WithExecutionResult(ctx context.Context, result *ExecutionResult) context.Context {
 	if result == nil {
@@ -35,6 +38,21 @@ func GetExecutionResult(ctx context.Context) (*ExecutionResult, bool) {
 	}
 	result, ok := ctx.Value(executionResultKey{}).(*ExecutionResult)
 	return result, ok
+}
+
+func WithToolTraceHandler(ctx context.Context, handler ToolTraceHandler) context.Context {
+	if ctx == nil || handler == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, toolTraceHandlerKey{}, handler)
+}
+
+func GetToolTraceHandler(ctx context.Context) (ToolTraceHandler, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	handler, ok := ctx.Value(toolTraceHandlerKey{}).(ToolTraceHandler)
+	return handler, ok
 }
 
 func (e *Executor) Execute(ctx context.Context, workflow *Workflow) error {
@@ -66,6 +84,7 @@ func (e *Executor) Execute(ctx context.Context, workflow *Workflow) error {
 	}
 
 	msgChan := agent.StreamRequest(ctx, prompt)
+	traceHandler, _ := GetToolTraceHandler(ctx)
 
 	var lastThought string
 	var execErr error
@@ -73,6 +92,12 @@ func (e *Executor) Execute(ctx context.Context, workflow *Workflow) error {
 	for msg := range msgChan {
 		if result != nil {
 			result.Record = append(result.Record, msg)
+		}
+		if traceHandler != nil {
+			switch msg.(type) {
+			case models.AgentExecutingToolStart, models.AgentExecutingToolFinish:
+				traceHandler(msg)
+			}
 		}
 
 		switch event := msg.(type) {

@@ -1,6 +1,7 @@
-import { formatFeedTimestamp } from './utils.js';
+import { formatFeedTimestamp, formatToolArgs, safeParseJSON } from './utils.js';
 
 let schedulesCache = [];
+let runsCacheBySchedule = new Map();
 let currentScheduleId = null;
 let isEditing = false;
 let activePollTimeout = null;
@@ -24,6 +25,19 @@ export function handleSchedulerRunUpdate(event) {
         if (historyContainer) {
             loadRunHistory(currentScheduleId, historyContainer);
         }
+    }
+
+    const cachedRuns = runsCacheBySchedule.get(event.schedule_id);
+    if (Array.isArray(cachedRuns)) {
+        const index = cachedRuns.findIndex((run) => run.id === event.id);
+        if (index >= 0) {
+            cachedRuns[index] = event;
+        }
+    }
+
+    const modal = document.getElementById('scheduler-run-modal');
+    if (modal && modal.classList.contains('active') && modal.dataset.runId === event.id) {
+        showRunDetail(event, cachedRuns || null);
     }
 }
 
@@ -119,6 +133,7 @@ function showRunDetail(run, allRuns) {
     const modal = document.getElementById('scheduler-run-modal');
     const content = document.getElementById('scheduler-modal-content');
     if (!modal || !content) return;
+    modal.dataset.runId = run.id;
 
     const duration = run.ended_at
         ? ((new Date(run.ended_at) - new Date(run.started_at)) / 1000).toFixed(3) + 's'
@@ -163,6 +178,11 @@ function showRunDetail(run, allRuns) {
         </div>
     `;
 
+    const traceEvents = Array.isArray(run.tool_trace) ? run.tool_trace : [];
+    if (traceEvents.length > 0) {
+        renderToolTrace(content, traceEvents);
+    }
+
     // Navigation logic
     const prevBtn = document.getElementById('modal-nav-prev');
     const nextBtn = document.getElementById('modal-nav-next');
@@ -193,6 +213,39 @@ function showRunDetail(run, allRuns) {
     }
 
     modal.classList.add('active');
+}
+
+function renderToolTrace(container, traceEvents) {
+    if (!container || !Array.isArray(traceEvents)) return;
+    const seen = new Set();
+    const orderedCalls = [];
+
+    for (const event of traceEvents) {
+        if (!event || !event.type) continue;
+        const payload = safeParseJSON(event.content);
+        if (!payload || typeof payload !== 'object' || !payload.id) continue;
+        if (seen.has(payload.id)) continue;
+
+        if (event.type === 'executing_tool_start' || event.type === 'executing_tool_finish') {
+            seen.add(payload.id);
+            orderedCalls.push(payload);
+        }
+    }
+
+    orderedCalls.forEach((payload, index) => {
+        const row = document.createElement('div');
+        row.className = 'scheduler-modal-row';
+        const argsText = formatToolArgs(payload.args);
+        row.innerHTML = `
+            <div class="scheduler-modal-label">Tool #${index + 1} ${payload.name || 'Tool'}</div>
+            <div class="scheduler-tool-trace-value">
+                <pre></pre>
+            </div>
+        `;
+        const pre = row.querySelector('pre');
+        if (pre) pre.textContent = argsText;
+        container.appendChild(row);
+    });
 }
 
 function closeRunDetail() {
@@ -430,6 +483,7 @@ async function loadRunHistory(scheduleId, container) {
 
     try {
         const runs = await window.go.app.App.ListScheduleRuns(scheduleId);
+        runsCacheBySchedule.set(scheduleId, runs || []);
 
         const lastRunEl = document.querySelector('#schedule-last-run');
         if (runs && runs.length > 0) {

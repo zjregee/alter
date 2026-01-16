@@ -70,13 +70,17 @@
     border-color: var(--accent);
 }
 
-.feed-article-item.read .feed-article-title {
-    color: var(--text-tertiary);
-    font-weight: 400;
+.feed-article-item .dot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 6px;
+    height: 6px;
+    display: none;
 }
 
-.feed-article-item.read .feed-article-content {
-    color: var(--text-tertiary);
+.feed-article-item.has-unread .dot {
+    display: block;
 }
 
 .feed-article-header {

@@ -213,7 +213,9 @@ function createThreadItem(thread) {
     item.draggable = true;
 
     item.innerHTML = `<div class="thread-text"></div><div class="thread-actions"><button class="thread-action-btn thread-delete-btn" title="删除">×</button></div>`;
-    item.querySelector('.thread-text').textContent = thread.title;
+    const textEl = item.querySelector('.thread-text');
+    textEl.textContent = truncateTitle(thread.title);
+    textEl.title = thread.title;
 
     item.addEventListener('click', () => switchThread(thread.id));
 
@@ -254,6 +256,11 @@ function createThreadItem(thread) {
     });
 
     return item;
+}
+
+function truncateTitle(text, maxChars = 12) {
+    if (!text || text.length <= maxChars) return text;
+    return `${text.slice(0, maxChars)}..`;
 }
 
 export async function switchThread(threadID) {

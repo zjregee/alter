@@ -21,10 +21,11 @@ type ScheduleRun struct {
 	ID         string `json:"id"`
 	ScheduleID string `json:"schedule_id"`
 
-	Status     WorkflowState `json:"status"`
-	Summary    string        `json:"summary,omitempty"`
-	Error      string        `json:"error,omitempty"`
-	RetryCount int           `json:"retry_count"`
-	StartedAt  string        `json:"started_at"`
-	EndedAt    string        `json:"ended_at,omitempty"`
+	Status     WorkflowState             `json:"status"`
+	Summary    string                    `json:"summary,omitempty"`
+	Error      string                    `json:"error,omitempty"`
+	RetryCount int                       `json:"retry_count"`
+	StartedAt  string                    `json:"started_at"`
+	EndedAt    string                    `json:"ended_at,omitempty"`
+	ToolTrace  []*MarshaledThreadMessage `json:"tool_trace,omitempty"`
 }

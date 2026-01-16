@@ -32,19 +32,12 @@ func getAvailableWorkspaces() []*models.WorkspaceInfo {
 }
 
 func isWorkspacePathAvailable(workspacePath string) bool {
-	infos := getAvailableWorkspaces()
-	for _, info := range infos {
-		if info.Path == workspacePath {
-			info, err := os.Stat(workspacePath)
-			if err != nil || !info.IsDir() {
-				return false
-			}
-
-			return true
-		}
+	info, err := os.Stat(workspacePath)
+	if err != nil || !info.IsDir() {
+		return false
 	}
 
-	return false
+	return true
 }
 
 func addWorkspace(workspacePath string) error {

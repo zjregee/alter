@@ -114,7 +114,9 @@ export function renderFeedTopics() {
         }
 
         topicEl.innerHTML = `<div class="thread-text"></div><div class="dot"></div>`;
-        topicEl.querySelector('.thread-text').textContent = topic;
+        const textEl = topicEl.querySelector('.thread-text');
+        textEl.textContent = truncateTopicTitle(topic);
+        textEl.title = topic;
         topicEl.dataset.topicId = topic;
         if (topic === state.currentFeedTopicId) {
             topicEl.classList.add('active');
@@ -133,6 +135,11 @@ export function renderFeedTopics() {
         });
         dom.feedTopicsList.appendChild(topicEl);
     });
+}
+
+function truncateTopicTitle(text, maxChars = 12) {
+    if (!text || text.length <= maxChars) return text;
+    return `${text.slice(0, maxChars)}..`;
 }
 
 export function renderFeedArticles() {
@@ -166,12 +173,14 @@ export function renderFeedArticles() {
     state.feedArticlesCache.forEach((article) => {
         const articleEl = document.createElement('div');
         articleEl.className = 'feed-article-item';
-        if (article.is_read) {
-            articleEl.classList.add('read');
+        if (!article.is_read) {
+            articleEl.classList.add('has-unread');
         }
 
         const headerEl = document.createElement('div');
         headerEl.className = 'feed-article-header';
+        const unreadDot = document.createElement('span');
+        unreadDot.className = 'dot';
         const titleEl = document.createElement('h2');
         titleEl.className = 'feed-article-title';
         titleEl.textContent = article?.title || 'Untitled';
@@ -186,12 +195,13 @@ export function renderFeedArticles() {
         headerEl.appendChild(timestampEl);
         articleEl.appendChild(headerEl);
         articleEl.appendChild(contentEl);
+        articleEl.appendChild(unreadDot);
 
         articleEl.addEventListener('click', () => {
             // Mark as read if not already
             if (!article.is_read) {
                 article.is_read = true;
-                articleEl.classList.add('read');
+                articleEl.classList.remove('has-unread');
 
                 // Update unread count
                 const topic = article.topic;

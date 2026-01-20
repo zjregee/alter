@@ -112,6 +112,23 @@ func (s *Scheduler) executeSchedule(schedule *models.Schedule) {
 	}
 	notify.EmitSchedulerRunUpdated(s.ctx, run)
 
+	select {
+	case s.sem <- struct{}{}:
+		defer func() { <-s.sem }()
+	case <-s.ctx.Done():
+		s.activeMu.Lock()
+		run.Status = models.WorkflowStateFailed
+		run.Error = "scheduler stopped"
+		run.EndedAt = timeToString(time.Now())
+		s.activeMu.Unlock()
+
+		if err := storage.SaveScheduleRun(run); err != nil {
+			utils.GetLogger().Printf("Failed to save cancelled schedule run: %v", err)
+		}
+		notify.EmitSchedulerRunUpdated(context.Background(), run)
+		return
+	}
+
 	s.activeMu.Lock()
 	s.activeRuns[run.ID] = run
 	s.activeMu.Unlock()
@@ -151,7 +168,7 @@ func (s *Scheduler) executeSchedule(schedule *models.Schedule) {
 		utils.GetLogger().Printf("Failed to save schedule run %s: %v", run.ID, err)
 		return
 	}
-	notify.EmitSchedulerRunUpdated(s.ctx, run)
+	notify.EmitSchedulerRunUpdated(context.Background(), run)
 }
 
 func (s *Scheduler) executeScheduleWithRetry(schedule *models.Schedule, run *models.ScheduleRun) error {

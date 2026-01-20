@@ -32,6 +32,7 @@ type Scheduler struct {
 
 	activeMu   sync.RWMutex
 	activeRuns map[string]*models.ScheduleRun
+	sem        chan struct{}
 }
 
 func newScheduler() *Scheduler {
@@ -40,6 +41,7 @@ func newScheduler() *Scheduler {
 		executor:   workflow.NewExecutor(),
 		queue:      newScheduleQueue(),
 		activeRuns: make(map[string]*models.ScheduleRun),
+		sem:        make(chan struct{}, 2),
 	}
 }
 

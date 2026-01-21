@@ -13,7 +13,9 @@ import (
 	"github.com/zjregee/alter/internal/service/tools/bash"
 	"github.com/zjregee/alter/internal/service/tools/duckduckgo"
 	"github.com/zjregee/alter/internal/service/tools/feed"
+	"github.com/zjregee/alter/internal/service/tools/sequential_thinking"
 	"github.com/zjregee/alter/internal/service/tools/skills"
+	"github.com/zjregee/alter/internal/service/tools/wikipedia"
 	"github.com/zjregee/alter/internal/utils"
 )
 
@@ -151,4 +153,6 @@ func init() {
 	registerTool(feed.PushFeedToolName, feed.GetPushFeedTool)
 	registerTool(skills.LoadSkillToolName, skills.LoadSkillTool)
 	registerTool(agents.RunAgentToolName, agents.GetAgentsTool)
+	registerTool(wikipedia.WikipediaToolName, wikipedia.GetWikipediaTool)
+	registerTool(sequential_thinking.SequentialThinkingToolName, sequential_thinking.GetSequentialThinkingTool)
 }
